@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model AnalysisResult {
+  id              String   @id @default(uuid())
+  role            String
+  jobDescription  String   @db.Text
+  resumeText      String   @db.Text
+  score           Int
+  status          String
+  feedback        Json     // Stores Roadmap, Quiz results, etc.
+  createdAt       DateTime @default(now())
+}
