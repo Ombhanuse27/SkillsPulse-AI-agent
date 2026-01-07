@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { 
   Upload, Brain, CheckCircle, Terminal, 
-  BookOpen, ExternalLink, RefreshCw, AlertOctagon, Code, Play, Copy, FileCode, FolderTree, ChevronRight
+  ExternalLink, RefreshCw, AlertOctagon, 
+  Play, Lightbulb, Clock, Target, 
+  TrendingUp, Eye, ShieldCheck, Zap, Layers 
 } from "lucide-react";
 
 export default function Home() {
@@ -14,10 +16,11 @@ export default function Home() {
   
   const [activeTab, setActiveTab] = useState("overview"); 
   const [quizData, setQuizData] = useState<any>(null);
-  const [scaffoldData, setScaffoldData] = useState<any>(null);
+  const [projectIdeas, setProjectIdeas] = useState<any>(null); 
   const [featureLoading, setFeatureLoading] = useState(false);
   const [selectedAnswers, setSelectedAnswers] = useState<{[key: number]: number}>({});
 
+  // 1. PROCESS RESUME
   const handleProcess = async () => {
     if (!file || !jobRole || !jdText) {
       alert("Please fill in all fields");
@@ -50,7 +53,11 @@ export default function Home() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }),
       });
       const { data, errors } = await aiRes.json();
-      if (errors) throw new Error(errors[0].message);
+      
+      if (errors || !data) {
+        throw new Error(errors?.[0]?.message || "Analysis failed");
+      }
+      
       setResult(data.analyzeApplication);
     } catch (err) {
       console.error(err);
@@ -60,6 +67,7 @@ export default function Home() {
     }
   };
 
+  // 2. GENERATE QUIZ
   const handleGenerateQuiz = async (topic: string) => {
     setFeatureLoading(true);
     const query = `mutation { generateQuiz(topic: "${topic}", jobRole: "${jobRole}") { question options correctAnswer explanation } }`;
@@ -71,38 +79,81 @@ export default function Home() {
     setFeatureLoading(false);
   };
 
-  const handleScaffold = async () => {
+  // 3. GENERATE PROJECT IDEAS
+  const handleGenerateIdeas = async () => {
     setFeatureLoading(true);
-    const stack = result.recommendedStack || "Full Stack";
-    // Asking for the rich "steps" with content and type
+    const missingSkills = result.topMissingSkills || [];
+    
     const query = `
       mutation { 
-        generateScaffold(
-          techStack: "${stack}", 
-          projectIdea: "${result.projectIdea.substring(0, 150)}..."
+        generateProjectIdeas(
+          missingSkills: ${JSON.stringify(missingSkills)}, 
+          jobRole: "${jobRole}"
         ) { 
-          projectName 
-          techStack
-          summary
-          fileTree 
-          steps { 
-            id title description type content filePath
-          } 
+          title 
+          description 
+          difficulty 
+          techStack 
+          keyFeatures 
         } 
       }
     `;
     
-    const res = await fetch("/api/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
-    const { data } = await res.json();
-    setScaffoldData(data.generateScaffold);
-    setActiveTab("builder");
-    setFeatureLoading(false);
+    try {
+      const res = await fetch("/api/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+      const { data, errors } = await res.json();
+      
+      if (errors || !data) {
+        throw new Error(errors?.[0]?.message || "Failed to generate ideas");
+      }
+
+      setProjectIdeas(data.generateProjectIdeas);
+      setActiveTab("builder"); 
+    } catch (error) {
+      console.error(error);
+      alert("Failed to generate project ideas.");
+    } finally {
+      setFeatureLoading(false);
+    }
   };
 
   const getQuizTopic = () => {
     if (result?.topMissingSkills?.length > 0) return result.topMissingSkills[0]; 
     return jobRole;
   };
+
+  // 🔥 FIXED: Derived Metrics Helper
+  // Returns default values to prevent TypeScript/Runtime errors when result is null
+  const getDerivedMetrics = () => {
+    const defaultMetrics = { 
+      timeToReady: "N/A", 
+      strengths: [] as string[], 
+      quickWins: [] as string[], 
+      coverage: 0 
+    };
+
+    if (!result) return defaultMetrics;
+    
+    // 1. Time-to-Ready: Based on roadmap length
+    const timeToReady = result.roadmap ? `${result.roadmap.length} Weeks` : "N/A";
+    
+    // 2. Strengths: Recommended stack items NOT in missing skills
+    const allTech = result.recommendedStack ? result.recommendedStack.split(',').map((s: string) => s.trim()) : [];
+    const missing = result.topMissingSkills || [];
+    const strengths = allTech.filter((t: string) => !missing.includes(t)).slice(0, 4);
+    
+    // 3. Quick Wins: First 3 tasks from Week 1
+    const quickWins = result.roadmap?.[0]?.tasks?.slice(0, 3) || [];
+
+    // 4. Coverage %
+    const coverage = allTech.length > 0 
+      ? Math.round(((allTech.length - missing.length) / allTech.length) * 100) 
+      : 0;
+
+    return { timeToReady, strengths, quickWins, coverage };
+  };
+
+  const metrics = getDerivedMetrics();
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-gray-200 p-6 md:p-12 font-sans">
@@ -114,7 +165,7 @@ export default function Home() {
             <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
               SkillPulse Agent
             </h1>
-            <p className="text-gray-500 mt-2 text-sm"> AI-powered career coach that builds your roadmap.</p>
+            <p className="text-gray-500 mt-2 text-sm"> AI-powered career coach.</p>
           </div>
           
           <div className="bg-[#111] p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4">
@@ -175,7 +226,7 @@ export default function Home() {
                 {['overview', 'roadmap', 'ats', 'quiz', 'builder'].map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)} 
                     className={`px-6 py-4 text-sm font-bold uppercase tracking-wider hover:bg-[#1a1a1a] transition whitespace-nowrap ${activeTab === tab ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-900/5' : 'text-gray-500'}`}>
-                    {tab === 'quiz' ? '⚔️ Skill Quiz' : tab === 'builder' ? '🚀 Builder' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === 'quiz' ? '⚔️ Skill Quiz' : tab === 'builder' ? '🚀 Ideas' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </button>
                 ))}
               </div>
@@ -184,29 +235,146 @@ export default function Home() {
                 
                 {/* 1. OVERVIEW TAB */}
                 {activeTab === 'overview' && (
-                  <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-blue-900/10 p-6 rounded-xl border border-blue-900/30">
-                      <h3 className="text-blue-400 font-bold mb-2 flex items-center gap-2"><Brain size={18}/> Executive Summary</h3>
-                      <p className="text-blue-100 italic leading-relaxed text-lg">"{result.summary}"</p>
-                    </div>
+                  <div className="animate-in fade-in space-y-6">
                     
-                    {/* Missing Skills Warning */}
-                    {result.topMissingSkills?.length > 0 && (
-                      <div className="bg-red-900/10 p-4 rounded-xl border border-red-900/30 flex items-center justify-between">
-                         <div>
-                           <h4 className="text-red-400 font-bold text-sm">⚠️ Critical Skill Gaps</h4>
-                           <p className="text-gray-400 text-xs">These skills are missing from your Projects/Experience.</p>
-                         </div>
-                         <div className="flex gap-2">
-                           {result.topMissingSkills.map((s: string, i: number) => (
-                             <span key={i} className="bg-red-900/50 text-red-200 px-2 py-1 rounded text-xs font-bold">{s}</span>
-                           ))}
-                         </div>
-                      </div>
-                    )}
+                    {/* Row 1: High Level Metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Time to Ready */}
+                        <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-gray-500 text-xs font-bold uppercase">Time to Ready</span>
+                                <Clock size={16} className="text-blue-500"/>
+                            </div>
+                            <div>
+                                <div className="text-2xl font-bold text-white">{metrics.timeToReady}</div>
+                                <div className="text-xs text-gray-500 mt-1">Based on skill gaps</div>
+                            </div>
+                        </div>
 
-                    {/* Feature Triggers */}
-                    <div className="grid md:grid-cols-2 gap-4 mt-2">
+                        {/* Portfolio Readiness */}
+                        <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-gray-500 text-xs font-bold uppercase">Portfolio Status</span>
+                                <Layers size={16} className="text-purple-500"/>
+                            </div>
+                            <div>
+                                <div className="text-2xl font-bold text-white capitalize">{result.status}</div>
+                                <div className="text-xs text-gray-500 mt-1">Project complexity check</div>
+                            </div>
+                        </div>
+
+                        {/* Tech Coverage Radar */}
+                        <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition">
+                             <div className="flex justify-between items-start mb-2">
+                                <span className="text-gray-500 text-xs font-bold uppercase">Tech Coverage</span>
+                                <Target size={16} className={metrics.coverage > 70 ? "text-green-500" : "text-yellow-500"}/>
+                            </div>
+                            <div className="w-full">
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-2xl font-bold text-white">{metrics.coverage}%</span>
+                                </div>
+                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                    <div 
+                                        className={`h-full rounded-full ${metrics.coverage > 70 ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                                        style={{ width: `${metrics.coverage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Row 2: Executive Summary & Recruiter Eye */}
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                        
+                        {/* Executive Summary */}
+                        <div className="md:col-span-3 bg-blue-900/10 p-6 rounded-xl border border-blue-900/30">
+                            <h3 className="text-blue-400 font-bold mb-3 flex items-center gap-2">
+                                <Brain size={18}/> Executive Summary
+                            </h3>
+                            <p className="text-blue-100/80 leading-relaxed">
+                                "{result.summary}"
+                            </p>
+                        </div>
+
+                        {/* Recruiter Eye View */}
+                        <div className="md:col-span-2 bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
+                             <h3 className="text-gray-300 font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
+                                <Eye size={18}/> Recruiter Eye View
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 text-sm text-gray-400">
+                                    <ShieldCheck size={16} className="text-green-500"/>
+                                    <span>Keywords: <span className="text-white font-bold">{metrics.strengths?.length || 0} Strong Matches</span></span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm text-gray-400">
+                                    <AlertOctagon size={16} className="text-red-500"/>
+                                    <span>Red Flags: <span className="text-white font-bold">{result.topMissingSkills?.length || 0} Critical Gaps</span></span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm text-gray-400">
+                                    <TrendingUp size={16} className="text-blue-500"/>
+                                    <span>Potential: <span className="text-white font-bold">{result.status}</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Row 3: Strengths & Gaps */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Highlights / Strengths */}
+                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
+                             <h4 className="text-green-400 font-bold text-sm mb-4 flex items-center gap-2">
+                                <Zap size={16}/> Strength Highlights
+                             </h4>
+                             <div className="flex flex-wrap gap-2">
+                                 {metrics.strengths && metrics.strengths.length > 0 ? (
+                                     metrics.strengths.map((s: string, i: number) => (
+                                        <span key={i} className="px-3 py-1.5 bg-green-900/20 border border-green-500/30 text-green-300 rounded text-xs font-semibold">
+                                            {s}
+                                        </span>
+                                     ))
+                                 ) : (
+                                     <span className="text-gray-500 text-sm italic">Core strengths need alignment with JD.</span>
+                                 )}
+                             </div>
+                        </div>
+
+                        {/* Critical Gaps */}
+                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
+                            <h4 className="text-red-400 font-bold text-sm mb-4 flex items-center gap-2">
+                                <AlertOctagon size={16}/> Critical Skill Gaps
+                             </h4>
+                             <div className="flex flex-wrap gap-2">
+                                 {result.topMissingSkills?.map((s: string, i: number) => (
+                                     <span key={i} className="px-3 py-1.5 bg-red-900/20 border border-red-500/30 text-red-300 rounded text-xs font-semibold">
+                                         {s}
+                                     </span>
+                                 ))}
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* Row 4: Quick Wins (7 Days) */}
+                    <div className="bg-gradient-to-r from-gray-900 to-[#1a1a1a] p-6 rounded-xl border border-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-white font-bold flex items-center gap-2">
+                                <Play size={18} className="text-blue-500"/> Quick Wins (First 7 Days)
+                            </h4>
+                            <span className="text-xs bg-blue-900/30 text-blue-300 px-2 py-1 rounded">Immediate Action</span>
+                        </div>
+                        <div className="space-y-3">
+                            {metrics.quickWins.map((task: string, i: number) => (
+                                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-black/40 border border-gray-800">
+                                    <div className="mt-1 w-5 h-5 rounded-full border-2 border-gray-600 flex items-center justify-center">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-gray-600"></div>
+                                    </div>
+                                    <span className="text-sm text-gray-300">{task}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid md:grid-cols-2 gap-4 pt-4">
                        <button onClick={() => handleGenerateQuiz(getQuizTopic())} disabled={featureLoading}
                          className="p-4 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/30 rounded-xl hover:scale-[1.02] transition text-left group">
                          <h3 className="font-bold text-white flex items-center gap-2"><Play size={20} className="text-purple-400"/> Test My Knowledge</h3>
@@ -214,14 +382,15 @@ export default function Home() {
                            {featureLoading ? "Generating..." : `Take a specialized ${getQuizTopic()} quiz.`}
                          </p>
                        </button>
-                       <button onClick={handleScaffold} disabled={featureLoading}
+                       <button onClick={handleGenerateIdeas} disabled={featureLoading}
                          className="p-4 bg-gradient-to-br from-green-900/40 to-emerald-900/40 border border-green-500/30 rounded-xl hover:scale-[1.02] transition text-left group">
-                         <h3 className="font-bold text-white flex items-center gap-2"><Code size={20} className="text-green-400"/> Start Project</h3>
+                         <h3 className="font-bold text-white flex items-center gap-2"><Lightbulb size={20} className="text-green-400"/> Project Ideas</h3>
                          <p className="text-xs text-gray-400 mt-1 group-hover:text-gray-300">
-                           {featureLoading ? "Building..." : `Generate ${result.recommendedStack || 'Project'} scaffold.`}
+                           {featureLoading ? "Brainstorming..." : "Generate portfolio ideas for missing skills."}
                          </p>
                        </button>
                     </div>
+
                   </div>
                 )}
 
@@ -314,68 +483,42 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 5. BUILDER TAB (Rich Project View) */}
+                {/* 5. BUILDER TAB (Project Ideas) */}
                 {activeTab === 'builder' && (
                   <div className="space-y-6 animate-in fade-in">
-                    {!scaffoldData ? (
-                      <div className="text-center text-gray-500 py-10">Select "Start Project" to build scaffold.</div>
+                    {!projectIdeas ? (
+                      <div className="text-center text-gray-500 py-10">Select "Project Ideas" to start.</div>
                     ) : (
-                      <>
-                        {/* Header Info */}
-                        <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6 rounded-xl border border-blue-900/30 mb-2">
-                           <h3 className="text-xl font-bold text-white mb-2">🚀 {scaffoldData.projectName}</h3>
-                           <p className="text-gray-400 text-xs font-mono mb-3 bg-black/30 inline-block px-2 py-1 rounded border border-white/10">{scaffoldData.techStack}</p>
-                           <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{scaffoldData.summary}</p>
-                        </div>
-
-                        {/* File Tree Visualizer */}
-                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                          <h3 className="font-bold text-blue-400 mb-4 flex items-center gap-2"><FolderTree size={18}/> Project Structure</h3>
-                          <pre className="text-xs text-green-300 font-mono whitespace-pre-wrap custom-scrollbar bg-black p-4 rounded-lg border border-gray-800">
-                            {scaffoldData.fileTree}
-                          </pre>
-                        </div>
-
-                        {/* Detailed Steps */}
-                        <div className="space-y-6">
-                            {scaffoldData.steps?.map((step: any, i: number) => (
-                            <div key={i} className="bg-[#1a1a1a] border border-gray-800 rounded-xl overflow-hidden">
-                                {/* Step Header */}
-                                <div className="p-4 bg-gray-900 border-b border-gray-800 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                                      {i+1}
-                                    </div>
-                                    <h3 className="font-bold text-white text-md">{step.title}</h3>
-                                </div>
-                                
-                                {/* Step Content */}
-                                <div className="p-5">
-                                    <p className="text-gray-400 text-sm mb-4">{step.description}</p>
-                                    
-                                    <div className="relative group">
-                                        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition z-10">
-                                            <Copy 
-                                              size={16} 
-                                              className="text-gray-400 cursor-pointer hover:text-white bg-gray-800 p-1 rounded"
-                                              onClick={() => navigator.clipboard.writeText(step.content)}
-                                            />
-                                        </div>
-                                        
-                                        {step.type === 'code' && step.filePath && (
-                                          <div className="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-t-lg border-b border-gray-700 inline-block">
-                                            📄 {step.filePath}
-                                          </div>
-                                        )}
-                                        
-                                        <pre className={`p-4 overflow-x-auto font-mono text-xs shadow-inner custom-scrollbar ${step.type === 'command' ? 'bg-black text-green-400 border border-gray-800 rounded-lg' : 'bg-[#0d0d0d] text-gray-300 border border-gray-800 rounded-b-lg rounded-tr-lg'}`}>
-                                            {step.content}
-                                        </pre>
-                                    </div>
-                                </div>
+                      <div className="grid gap-6">
+                        {projectIdeas.map((idea: any, i: number) => (
+                          <div key={i} className={`p-6 rounded-xl border border-gray-800 bg-[#1a1a1a] hover:border-gray-700 transition relative overflow-hidden group`}>
+                            
+                            <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-lg uppercase ${
+                              idea.difficulty === 'Beginner' ? 'bg-green-900/50 text-green-400' :
+                              idea.difficulty === 'Intermediate' ? 'bg-yellow-900/50 text-yellow-400' :
+                              'bg-red-900/50 text-red-400'
+                            }`}>
+                              {idea.difficulty}
                             </div>
-                            ))}
-                        </div>
-                      </>
+
+                            <h3 className="text-xl font-bold text-white mb-2">{idea.title}</h3>
+                            <p className="text-gray-400 text-sm mb-4 leading-relaxed">{idea.description}</p>
+                            
+                            <div className="mb-4">
+                              <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Key Features</h4>
+                              <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
+                                {idea.keyFeatures.map((f: string, j: number) => <li key={j}>{f}</li>)}
+                              </ul>
+                            </div>
+
+                            <div className="flex gap-2 flex-wrap mt-auto">
+                              {idea.techStack.map((tech: string, k: number) => (
+                                <span key={k} className="px-2 py-1 bg-black rounded border border-gray-800 text-xs text-gray-400">{tech}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}

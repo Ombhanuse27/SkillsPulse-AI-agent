@@ -34,22 +34,12 @@ const typeDefs = gql`
     explanation: String
   }
 
-  # 🔥 NEW: Rich Project Structure
-  type ProjectStep {
-    id: String
+  type ProjectIdea {
     title: String
     description: String
-    type: String # "command" or "code" or "file_structure"
-    content: String # The actual code or command
-    filePath: String # e.g. "backend/models/User.js" (optional for commands)
-  }
-
-  type ProjectScaffold {
-    projectName: String
-    techStack: String
-    summary: String
-    fileTree: String # Visual tree representation
-    steps: [ProjectStep]
+    difficulty: String 
+    techStack: [String]
+    keyFeatures: [String]
   }
 
   type Analysis {
@@ -60,7 +50,7 @@ const typeDefs = gql`
     recommendedStack: String
     roadmap: [WeekPlan]
     atsFixes: [AtsFix]
-    projectIdea: String
+    projectIdea: String 
     interviewPrep: String
   }
 
@@ -69,82 +59,77 @@ const typeDefs = gql`
   type Mutation {
     analyzeApplication(resumeText: String!, jobDescription: String!, jobRole: String!): Analysis
     generateQuiz(topic: String!, jobRole: String!): [QuizQuestion]
-    generateScaffold(techStack: String!, projectIdea: String!): ProjectScaffold
+    generateProjectIdeas(missingSkills: [String]!, jobRole: String!): [ProjectIdea]
   }
 `;
 
 const resolvers = {
   Mutation: {
-    // 1. ANALYSIS ENGINE
+    // 1. ANALYSIS ENGINE (Fixed Prompt)
     analyzeApplication: async (_: any, { resumeText, jobDescription, jobRole }: any) => {
       const prompt = `
-        You are a Principal Software Architect and Career Mentor.
+        You are a Principal Software Architect and Technical Recruiter.
         
         CONTEXT:
         - TARGET ROLE: ${jobRole}
         - JD: "${jobDescription.slice(0, 3000)}"
         - RESUME: "${resumeText.slice(0, 15000)}"
 
+        **CRITICAL INSTRUCTION - READ CAREFULLY:**
+        1. **SCAN RESUME FIRST**: specific keywords like "Next.js", "Docker", "React", "TypeScript", "Node.js". 
+        2. **STRICT GAP ANALYSIS**: 
+           - **IF A SKILL IS IN THE RESUME (even in Projects/Skills section), IT IS NOT MISSING.** - ONLY list skills in "topMissingSkills" if they are **COMPLETELY ABSENT** from the resume text.
+           - Example: If JD asks for "Docker" and Resume says "HealthSchedule - Docker", DO NOT list Docker as missing.
+           - Example: If JD asks for "Django" and Resume has NO mention of "Django", LIST Django.
+
         YOUR MISSION:
-        1. **GAP ANALYSIS**: Strictly compare Resume vs JD. If a skill is required but missing/weak in resume, list it.
-        2. **TECH STACK**: Recommend the exact stack needed for the role (e.g. if JD wants Go/Microservices, suggest Go, gRPC, Docker).
-        
-        3. **DYNAMIC MASTERY ROADMAP**: 
+        1. **SCORE**: Rate match 0-100 based on skills present vs required.
+        2. **GAP LIST**: Strict list of completely missing skills.
+        3. **TECH STACK**: Recommend the stack defined in the JD.
+        4. **MASTERY ROADMAP**: 
            - Create a week-by-week plan strictly focused on the MISSING SKILLS.
-           - If many gaps, make it 6-8 weeks. If few gaps, 3-4 weeks.
-           - Be specific: "Week 1: Go Syntax & Routines", not just "Learn Go".
-           - **RESOURCES**: Searchable titles like "Go by Example", "Official React Docs".
-
-        4. **ATS IMPROVEMENT**: Rewrite 2 weak resume bullet points to use strong action verbs and metrics.
-
-        5. **PROJECT IDEA**: Suggest a "Flagship" project with respect to skills defined in Job Description and with respect to role. It must be complex enough to get hired (e.g. "Real-time Order System", not "ToDo list").
+           - If few gaps, 3-4 weeks. If many, 6-8 weeks.
+        5. **ATS IMPROVEMENT**: Rewrite 2 bullet points to sound more "Senior" (Action Verb + Metric + Result).
+        6. **PROJECT**: Suggest a specific Capstone project to bridge the gap between "Intern" and "Senior".
 
         OUTPUT JSON ONLY:
         {
-          "score": <0-100>,
+          "score": <Int>,
           "status": "<'Strong'|'Good'|'Weak'>",
-          "summary": "<Direct feedback summary>",
+          "summary": "<2 sentence summary of fit>",
           "topMissingSkills": ["<Skill 1>", "<Skill 2>"],
-          "recommendedStack": "<Tech Stack>",
-          "projectIdea": "<Project Name and High-Level Description>",
+          "recommendedStack": "<Comma separated list>",
+          "projectIdea": "<Project Title>",
           "roadmap": [
              { 
                "week": "Week 1", 
                "goal": "<Theme>", 
                "tasks": ["<Task 1>", "<Task 2>"], 
-               "resources": [{ "title": "<Resource>", "url": "...", "type": "Video/Article" }] 
+               "resources": [{ "title": "<Resource Name>", "url": "https://google.com/search?q=...", "type": "Article" }] 
              }
           ],
           "atsFixes": [
              { "original": "...", "improved": "...", "reason": "..." }
           ],
-          "interviewPrep": "<A hard scenario-based question>"
+          "interviewPrep": "<Hard Question>"
         }
       `;
 
       try {
         const completion = await groq.chat.completions.create({
           messages: [
-            { role: "system", content: "You are a JSON-only Career Agent." },
+            { role: "system", content: "You are a specific JSON-only Analysis Engine. Do not hallucinate missing skills if they exist in text." },
             { role: "user", content: prompt },
           ],
           model: "llama-3.3-70b-versatile",
-          temperature: 0.1,
+          temperature: 0.1, // Low temp to reduce hallucinations
           response_format: { type: "json_object" },
         });
 
         const aiResponse = JSON.parse(completion.choices[0]?.message?.content || "{}");
 
-        await prisma.analysisResult.create({
-          data: {
-            role: jobRole,
-            jobDescription,
-            resumeText,
-            score: aiResponse.score,
-            status: aiResponse.status,
-            feedback: aiResponse
-          }
-        });
+        // Optional: Save to DB
+        // await prisma.analysisResult.create({ ... });
 
         return aiResponse;
       } catch (error) {
@@ -153,165 +138,75 @@ const resolvers = {
       }
     },
 
-    // 2. PROJECT SCAFFOLDER (The "ChatGPT-like" Builder)
-    generateScaffold: async (_: any, { techStack, projectIdea }: any) => {
-    const prompt = `
-You are a Senior Software Architect and Dev Lead with real-world production experience.
-
-GOAL:
-Generate a COMPLETE, production-ready, Zero-to-Hero build guide for the project below.
-The output must be detailed enough that a developer can build and run the project from an empty folder without guessing.
-
-PROJECT DETAILS:
-- Project Name: "${projectIdea}"
-- Tech Stack: "${techStack}"
-
-STRICT REQUIREMENTS (DO NOT SKIP ANY):
-
-1. Start by VISUALIZING the COMPLETE project folder structure (ASCII tree).
-   - This structure becomes the SINGLE SOURCE OF TRUTH.
-   - Do NOT use "..." anywhere in the tree.
-2. Follow the structure EXACTLY in all later steps.
-   - Every file referenced MUST exist in the tree.
-   - No extra, missing, or implied files or folders.
-3. Cover the FULL STACK end-to-end:
-   - Project initialization
-   - Backend setup (MANDATORY if RESTful APIs are mentioned)
-   - Database configuration (if applicable)
-   - Models
-   - Middleware
-   - Routes / APIs
-   - Authentication (ONLY if applicable)
-   - Frontend / Mobile setup
-   - UI pages & components
-   - API integration
-   - Environment configuration
-4. For EVERY file in the structure:
-   - Provide the COMPLETE file content
-   - NO placeholders like "...", "TODO", or "etc."
-   - Use clean, readable, production-quality code
-   - All imports MUST resolve correctly
-   - If a dependency is used, it MUST be installed explicitly
-5. For EVERY setup step:
-   - Provide the EXACT terminal commands
-   - Commands MUST be copy-paste runnable
-   - Commands MUST exist in the real world (NO invented CLIs)
-   - Commands MUST be in correct execution order
-6. Keep logic SIMPLE and EASY to UNDERSTAND
-   - Prefer clarity over cleverness
-   - Avoid unnecessary abstractions
-7. Assume the reader is a MID-LEVEL DEVELOPER
-   - Explain briefly where needed
-   - No beginner fluff
-   - No senior-only jargon
-8. Do NOT:
-   - Skip files
-   - Combine multiple files into one step
-   - Use pseudo-code
-   - Refer to external tutorials or links
-   - Use placeholder URLs like api.example.com
-9. The output MUST be VALID JSON
-   - NO markdown
-   - NO comments outside JSON
-   - Escape newlines properly (\\n)
-   - JSON must be machine-parseable
-
-PLATFORM-SPECIFIC RULES (MANDATORY):
-
-- If iOS is used:
-  - Xcode project creation MUST be done via Xcode (not fake CLI commands)
-  - Podfile usage must include valid CocoaPods commands only
-  - Firebase MUST be configured using GoogleService-Info.plist
-  - Push notifications must include:
-    - APNs registration
-    - Permission handling
-    - AppDelegate integration
-  - Info.plist must contain ONLY valid iOS keys
-
-- If REST APIs are mentioned:
-  - A REAL backend project MUST be created
-  - Backend routes MUST be implemented and used by the client
-  - Request/response models MUST match client-side decoding
-
-OUTPUT FORMAT (JSON ONLY):
-
-{
-  "projectName": "<string>",
-  "techStack": "<string>",
-  "summary": "<brief 2–3 line overview of what we are building>",
-  "fileTree": "<complete ASCII folder structure>",
-  "steps": [
-    {
-      "id": "1",
-      "title": "Project Initialization",
-      "description": "Explain what this step does in 1–2 lines.",
-      "type": "command",
-      "content": "<exact terminal commands>"
-    },
-    {
-      "id": "2",
-      "title": "Backend Entry Point",
-      "description": "Explain the purpose of this file.",
-      "type": "code",
-      "filePath": "backend/server.js",
-      "content": "<complete code>"
-    },
-    {
-      "id": "3",
-      "title": "How to run the project",
-      "description": "Final step to run the entire project locally.",
-      "type": "command",
-      "content": "<exact terminal commands>"
-    }
+    // 2. PROJECT IDEA GENERATOR
+    generateProjectIdeas: async (_: any, { missingSkills, jobRole }: any) => {
+      const skillsStr = missingSkills.length > 0 ? missingSkills.join(", ") : "advanced architecture patterns";
       
-    // Continue until the project is fully built and runnable
-  ]
-}
+      const prompt = `
+        Role: Tech Lead Mentor.
+        Target: "${jobRole}".
+        Gaps: ${skillsStr}.
 
-QUALITY CHECK (DO THIS INTERNALLY BEFORE OUTPUT):
-- Can this project run if someone follows steps in order?
-- Are all imports and dependencies resolvable?
-- Are backend APIs real and reachable?
-- Are environment variables clearly defined and used?
-- Is the file tree 100% aligned with the code?
-- Is Firebase / platform configuration valid?
-- Is the JSON valid and parseable?
-
-If ANY issue is found:
-- Fix it silently
-- Re-check everything
-- Then output the final result
-
-ONLY RETURN THE JSON OBJECT. NOTHING ELSE.
-After all steps, include a final step explaining:
-- Architecture
-- Data flow
-- Push notification flow
-- Scaling strategy
-- Trade-offs
-`;
-
-
+        Generate 3 Project Ideas to fill these gaps.
+        OUTPUT JSON ONLY:
+        {
+          "ideas": [
+            {
+              "title": "<Name>",
+              "description": "<Desc>",
+              "difficulty": "Beginner",
+              "techStack": ["<Tech>"],
+              "keyFeatures": ["<Feature>"]
+            },
+            {
+              "title": "<Name>",
+              "description": "<Desc>",
+              "difficulty": "Intermediate",
+              "techStack": ["<Tech>"],
+              "keyFeatures": ["<Feature>"]
+            },
+            {
+              "title": "<Name>",
+              "description": "<Desc>",
+              "difficulty": "Advanced",
+              "techStack": ["<Tech>"],
+              "keyFeatures": ["<Feature>"]
+            }
+          ]
+        }
+      `;
       
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-      });
-      
-      return JSON.parse(completion.choices[0]?.message?.content || "{}");
+      try {
+        const completion = await groq.chat.completions.create({
+          messages: [{ role: "user", content: prompt }],
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" }
+        });
+        
+        const res = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        return res.ideas || [];
+      } catch (e) {
+        console.error("Project Gen Error", e);
+        throw new Error("Failed to generate ideas");
+      }
     },
 
-    // 3. QUIZ ENGINE (Unchanged)
+    // 3. QUIZ ENGINE
     generateQuiz: async (_: any, { topic, jobRole }: any) => {
-      const prompt = `Generate 5 Hard Technical Questions on "${topic}" for "${jobRole}". Output JSON: { "questions": [{ "question": "...", "options": [], "correctAnswer": 0, "explanation": "..." }] }`;
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-      });
-      const res = JSON.parse(completion.choices[0]?.message?.content || "{}");
-      return res.questions || [];
+      const prompt = `Generate 5 Hard Technical Interview Questions on "${topic}" for "${jobRole}". 
+      OUTPUT JSON: { "questions": [{ "question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": 0, "explanation": "..." }] }`;
+      
+      try {
+        const completion = await groq.chat.completions.create({
+          messages: [{ role: "user", content: prompt }],
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" }
+        });
+        const res = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        return res.questions || [];
+      } catch (e) {
+        return [];
+      }
     }
   },
 };
