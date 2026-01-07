@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { 
   Upload, Brain, CheckCircle, Terminal, 
-  BookOpen, ExternalLink, RefreshCw, AlertOctagon, Code, Play, Copy, FileCode 
+  BookOpen, ExternalLink, RefreshCw, AlertOctagon, Code, Play, Copy, FileCode, FolderTree, ChevronRight
 } from "lucide-react";
 
 export default function Home() {
@@ -32,7 +32,6 @@ export default function Home() {
       const { text } = await parseRes.json();
       if (!text) throw new Error("PDF parse failed");
 
-      // ✅ Query updated: Removed salary/culture fields to match new backend schema
       const query = `
         mutation {
           analyzeApplication(
@@ -74,9 +73,25 @@ export default function Home() {
 
   const handleScaffold = async () => {
     setFeatureLoading(true);
-    const stack = result.recommendedStack || "Next.js, Tailwind";
-    // We pass the rich project idea to get a matching scaffold
-    const query = `mutation { generateScaffold(techStack: "${stack}", projectIdea: "${result.projectIdea.substring(0, 100)}...") { projectName folderStructure installCommands readmeContent steps } }`;
+    const stack = result.recommendedStack || "Full Stack";
+    // Asking for the rich "steps" with content and type
+    const query = `
+      mutation { 
+        generateScaffold(
+          techStack: "${stack}", 
+          projectIdea: "${result.projectIdea.substring(0, 150)}..."
+        ) { 
+          projectName 
+          techStack
+          summary
+          fileTree 
+          steps { 
+            id title description type content filePath
+          } 
+        } 
+      }
+    `;
+    
     const res = await fetch("/api/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
     const { data } = await res.json();
     setScaffoldData(data.generateScaffold);
@@ -170,8 +185,6 @@ export default function Home() {
                 {/* 1. OVERVIEW TAB */}
                 {activeTab === 'overview' && (
                   <div className="space-y-6 animate-in fade-in">
-                    
-                    {/* Summary */}
                     <div className="bg-blue-900/10 p-6 rounded-xl border border-blue-900/30">
                       <h3 className="text-blue-400 font-bold mb-2 flex items-center gap-2"><Brain size={18}/> Executive Summary</h3>
                       <p className="text-blue-100 italic leading-relaxed text-lg">"{result.summary}"</p>
@@ -194,9 +207,7 @@ export default function Home() {
 
                     {/* Feature Triggers */}
                     <div className="grid md:grid-cols-2 gap-4 mt-2">
-                       <button 
-                         onClick={() => handleGenerateQuiz(getQuizTopic())} 
-                         disabled={featureLoading}
+                       <button onClick={() => handleGenerateQuiz(getQuizTopic())} disabled={featureLoading}
                          className="p-4 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/30 rounded-xl hover:scale-[1.02] transition text-left group">
                          <h3 className="font-bold text-white flex items-center gap-2"><Play size={20} className="text-purple-400"/> Test My Knowledge</h3>
                          <p className="text-xs text-gray-400 mt-1 group-hover:text-gray-300">
@@ -266,7 +277,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 4. QUIZ TAB (Interactive) */}
+                {/* 4. QUIZ TAB */}
                 {activeTab === 'quiz' && (
                   <div className="space-y-6 animate-in fade-in">
                     {!quizData ? (
@@ -303,47 +314,66 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 5. BUILDER TAB (With Project Idea Header) */}
+                {/* 5. BUILDER TAB (Rich Project View) */}
                 {activeTab === 'builder' && (
                   <div className="space-y-6 animate-in fade-in">
                     {!scaffoldData ? (
                       <div className="text-center text-gray-500 py-10">Select "Start Project" to build scaffold.</div>
                     ) : (
                       <>
-                        {/* ✅ Project Idea Display */}
+                        {/* Header Info */}
                         <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6 rounded-xl border border-blue-900/30 mb-2">
-                           <h3 className="text-xl font-bold text-white mb-2">🚀 Project: {scaffoldData.projectName}</h3>
-                           <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{result.projectIdea}</p>
+                           <h3 className="text-xl font-bold text-white mb-2">🚀 {scaffoldData.projectName}</h3>
+                           <p className="text-gray-400 text-xs font-mono mb-3 bg-black/30 inline-block px-2 py-1 rounded border border-white/10">{scaffoldData.techStack}</p>
+                           <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{scaffoldData.summary}</p>
                         </div>
 
-                        {/* Steps */}
+                        {/* File Tree Visualizer */}
                         <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                            <h3 className="font-bold text-yellow-400 mb-4 flex items-center gap-2">
-                                <BookOpen size={18}/> Implementation Guide
-                            </h3>
-                            <div className="space-y-3">
-                                {scaffoldData.steps?.map((step: string, i: number) => (
-                                <div key={i} className="flex gap-3 text-sm text-gray-300">
-                                    <span className="font-bold text-gray-500">{i+1}.</span>
-                                    <p>{step}</p>
+                          <h3 className="font-bold text-blue-400 mb-4 flex items-center gap-2"><FolderTree size={18}/> Project Structure</h3>
+                          <pre className="text-xs text-green-300 font-mono whitespace-pre-wrap custom-scrollbar bg-black p-4 rounded-lg border border-gray-800">
+                            {scaffoldData.fileTree}
+                          </pre>
+                        </div>
+
+                        {/* Detailed Steps */}
+                        <div className="space-y-6">
+                            {scaffoldData.steps?.map((step: any, i: number) => (
+                            <div key={i} className="bg-[#1a1a1a] border border-gray-800 rounded-xl overflow-hidden">
+                                {/* Step Header */}
+                                <div className="p-4 bg-gray-900 border-b border-gray-800 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                      {i+1}
+                                    </div>
+                                    <h3 className="font-bold text-white text-md">{step.title}</h3>
                                 </div>
-                                ))}
+                                
+                                {/* Step Content */}
+                                <div className="p-5">
+                                    <p className="text-gray-400 text-sm mb-4">{step.description}</p>
+                                    
+                                    <div className="relative group">
+                                        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition z-10">
+                                            <Copy 
+                                              size={16} 
+                                              className="text-gray-400 cursor-pointer hover:text-white bg-gray-800 p-1 rounded"
+                                              onClick={() => navigator.clipboard.writeText(step.content)}
+                                            />
+                                        </div>
+                                        
+                                        {step.type === 'code' && step.filePath && (
+                                          <div className="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-t-lg border-b border-gray-700 inline-block">
+                                            📄 {step.filePath}
+                                          </div>
+                                        )}
+                                        
+                                        <pre className={`p-4 overflow-x-auto font-mono text-xs shadow-inner custom-scrollbar ${step.type === 'command' ? 'bg-black text-green-400 border border-gray-800 rounded-lg' : 'bg-[#0d0d0d] text-gray-300 border border-gray-800 rounded-b-lg rounded-tr-lg'}`}>
+                                            {step.content}
+                                        </pre>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        {/* Install Commands */}
-                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                          <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-green-400 flex items-center gap-2"><Terminal size={18}/> Installation</h3>
-                            <Copy size={16} className="text-gray-500 cursor-pointer hover:text-white"/>
-                          </div>
-                          <code className="block bg-black p-4 rounded text-sm font-mono text-green-300 overflow-x-auto">{scaffoldData.installCommands}</code>
-                        </div>
-
-                        {/* Folder Structure */}
-                        <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                          <h3 className="font-bold text-blue-400 mb-4 flex items-center gap-2"><FileCode size={18}/> Folder Structure</h3>
-                          <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap">{scaffoldData.folderStructure}</pre>
+                            ))}
                         </div>
                       </>
                     )}
