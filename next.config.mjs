@@ -1,9 +1,9 @@
-import type { NextConfig } from "next";
-
-// Remove ": NextConfig" after "const nextConfig"
+/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Required for Docker deployment
   output: "standalone",
-  
+
+  // strictly ignore errors to pass the build
   eslint: {
     ignoreDuringBuilds: true,
   },
