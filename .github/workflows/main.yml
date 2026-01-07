@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 env:
-  # RENAME THIS to your actual Docker Hub repository
-  IMAGE_NAME: your-docker-username/skillpulse-ai 
+  # This automatically pulls the username from your secrets
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/skillpulse-ai
 
 jobs:
   build-and-push:
