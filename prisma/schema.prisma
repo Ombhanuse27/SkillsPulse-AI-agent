@@ -8,13 +8,67 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// --- EXISTING MODEL (Kept for backward compatibility) ---
 model AnalysisResult {
-  id              String   @id @default(uuid())
-  role            String
-  jobDescription  String   @db.Text
-  resumeText      String   @db.Text
-  score           Int
-  status          String
-  feedback        Json     // Stores Roadmap, Quiz results, etc.
-  createdAt       DateTime @default(now())
+  id             String   @id @default(uuid())
+  role           String
+  jobDescription String   @db.Text
+  resumeText     String   @db.Text
+  score          Int
+  status         String
+  feedback       Json
+  createdAt      DateTime @default(now())
+}
+
+// --- NEW AGENTIC MODELS ---
+model Resume {
+  id          String       @id @default(uuid())
+  createdAt   DateTime     @default(now())
+  
+  // Structured Fields
+  fullName    String?
+  summary     String?      @db.Text
+  email       String?
+  
+  // Relations
+  experiences Experience[]
+  projects    Project[]
+  skills      Skill[]
+  educations  Education[]
+}
+
+model Experience {
+  id          String   @id @default(uuid())
+  resumeId    String
+  resume      Resume   @relation(fields: [resumeId], references: [id])
+  role        String
+  company     String
+  duration    String?
+  description String   @db.Text
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  resumeId    String
+  resume      Resume   @relation(fields: [resumeId], references: [id])
+  title       String
+  techStack   String[] 
+  description String   @db.Text
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  resumeId    String
+  resume      Resume   @relation(fields: [resumeId], references: [id])
+  category    String?  
+  name        String
+}
+
+model Education {
+  id          String   @id @default(uuid())
+  resumeId    String
+  resume      Resume   @relation(fields: [resumeId], references: [id])
+  degree      String
+  institution String
+  year        String?
 }
