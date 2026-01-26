@@ -1,53 +1,31 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine
 
-# Install dependencies only when needed
-FROM base AS deps
 WORKDIR /app
+
+# Install dependencies needed for Prisma/Node on Alpine
+RUN apk add --no-cache libc6-compat
+
+# Copy package files
 COPY package.json package-lock.json* ./
-# Install dependencies including Prisma
-RUN npm ci
 
-# ... (lines 1-17 remain the same) ...
+# Install all dependencies
+RUN npm install
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copy the rest of your application code
 COPY . .
 
-# Generate Prisma Client
-# (This needs a DATABASE_URL to be defined, even if fake)
-ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
-ENV DIRECT_URL="postgresql://build:build@localhost:5432/build"
-ENV GROQ_API_KEY="dummy_key_for_build"
-
+# Generate the Prisma client
+# (Ensure your DATABASE_URL is in your .env or passed during build/run)
 RUN npx prisma generate
 
-# Build Next.js
-# (Now it won't crash looking for missing variables)
+# Build the Next.js application
 RUN npm run build
 
-# ... (rest of the file remains the same) ...
+# Set environment to production
+ENV NODE_ENV=production
 
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
-ENV NODE_ENV production
-
-# Create a non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
+# Expose the port Next.js runs on
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+# Start the application
+CMD ["npm", "start"]
