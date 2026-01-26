@@ -72,3 +72,25 @@ model Education {
   institution String
   year        String?
 }
+
+// --- NEW INTERVIEW MODELS ---
+model InterviewSession {
+  id        String   @id @default(uuid())
+  role      String   // e.g., "Full Stack Developer"
+  type      String   // "TECHNICAL", "BEHAVIORAL", "MOCK"
+  messages  InterviewMessage[]
+  createdAt DateTime @default(now())
+}
+
+model InterviewMessage {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   InterviewSession @relation(fields: [sessionId], references: [id])
+  sender    String   // "USER" or "AI"
+  content   String   @db.Text
+  
+  // JSON field to store AI analysis of the user's specific answer
+  metrics   Json?    // { score: 85, clarity: "High", feedback: "..." }
+  
+  createdAt DateTime @default(now())
+}

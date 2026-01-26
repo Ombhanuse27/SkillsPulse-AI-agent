@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import PDFParser from "pdf2json";
 import { PrismaClient } from "@prisma/client";
 import { extractStructuredData } from "@/lib/agent";
 
@@ -9,40 +8,30 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    
-    // 1. ROBUST TEXT EXTRACTION
-    const rawText = await new Promise<string>((resolve, reject) => {
-      const pdfParser = new PDFParser();
-      pdfParser.on("pdfParser_dataError", (errData: any) => reject(errData.parserError));
-      
-      pdfParser.on("pdfParser_dataReady", (pdfData) => {
-        const text = pdfData.Pages
-          .map((page: any) => 
-            page.Texts.map((t: any) => {
-              try {
-                return decodeURIComponent(t.R[0].T);
-              } catch (e) {
-                return t.R[0].T;
-              }
-            }).join("  ") // Double space between words in a line
-          )
-          .join("\n\n") // Double newline between blocks to prevent merging
-          .replace(/,/g, ", ") // Ensure commas have spaces after them
-          .replace(/\s+/g, " "); // Finally, collapse excessive whitespace
-          
-        resolve(text);
-      });
 
-      pdfParser.parseBuffer(buffer);
-    });
+    // ✅ IMPORTANT FIX: import core parser ONLY
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
 
-    // 2. AI AGENT (Normalizes Data)
+    const data = await pdfParse(buffer);
+    const rawText = data.text;
+
+    console.log("RAW TEXT LENGTH:", rawText.length);
+
+    if (!rawText || rawText.trim().length < 20) {
+      return NextResponse.json(
+        { error: "No readable text found in PDF. Please upload a text-based resume." },
+        { status: 400 }
+      );
+    }
+
     const structured = await extractStructuredData(rawText);
 
-    // 3. DB SAVE
     const savedResume = await prisma.resume.create({
       data: {
         fullName: structured.fullName,
@@ -51,12 +40,14 @@ export async function POST(req: Request) {
         skills: { create: structured.skills },
         experiences: { create: structured.experience },
         projects: { create: structured.projects },
-        educations: { create: structured.education }
-      }
+        educations: { create: structured.education },
+      },
     });
 
-    return NextResponse.json({ text: rawText, resumeId: savedResume.id });
-
+    return NextResponse.json({
+      text: rawText,
+      resumeId: savedResume.id,
+    });
   } catch (error) {
     console.error("Parse Error:", error);
     return NextResponse.json({ error: "Failed to process PDF" }, { status: 500 });
