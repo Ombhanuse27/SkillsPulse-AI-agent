@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { extractStructuredData } from "@/lib/agent";
@@ -15,17 +17,15 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // ✅ IMPORTANT FIX: import core parser ONLY
-    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+
 
     const data = await pdfParse(buffer);
     const rawText = data.text;
 
-    console.log("RAW TEXT LENGTH:", rawText.length);
-
     if (!rawText || rawText.trim().length < 20) {
       return NextResponse.json(
-        { error: "No readable text found in PDF. Please upload a text-based resume." },
+        { error: "No readable text found in PDF." },
         { status: 400 }
       );
     }
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       text: rawText,
       resumeId: savedResume.id,
     });
+
   } catch (error) {
     console.error("Parse Error:", error);
     return NextResponse.json({ error: "Failed to process PDF" }, { status: 500 });

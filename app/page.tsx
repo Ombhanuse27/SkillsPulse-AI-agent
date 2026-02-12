@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Brain, FileText, ArrowRight, Activity, Terminal, Sparkles } from "lucide-react";
+import { Brain, FileText, ArrowRight, Terminal, Sparkles, Map } from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -41,58 +41,78 @@ export default function LandingPage() {
         
         <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
           The autonomous career agent that bridges the gap between where you are and where you want to be. 
-          <span className="text-gray-200"> Audit. Upskill. Conquer.</span>
+          <span className="text-gray-200"> Audit. Plan. Conquer.</span>
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button className="px-8 py-4 bg-white text-black font-bold rounded-full hover:bg-blue-500 hover:text-white transition-all duration-300 transform hover:scale-105">
+            <Link href="/auth/signup" className="px-8 py-4 bg-white text-black font-bold rounded-full hover:bg-blue-500 hover:text-white transition-all duration-300 transform hover:scale-105">
                 Get Started Free
-            </button>
-            <button className="px-8 py-4 bg-white/5 border border-white/10 font-bold rounded-full hover:bg-white/10 transition-all">
-                Watch Demo
-            </button>
+            </Link>
+            <Link href="/auth/signin" className="px-8 py-4 bg-white/5 border border-white/10 font-bold rounded-full hover:bg-white/10 transition-all">
+                Sign In
+            </Link>
         </div>
       </div>
 
-      {/* Modules Grid */}
-      <div className="relative z-10 max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-6 mb-32">
+      {/* Modules Grid - UPDATED to 3 Columns */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6 mb-32">
         
-        {/* Module 1: Resume Analyzer */}
-        <Link href="/resume-analyzer" 
-          className="group relative overflow-hidden bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-10 transition-all duration-500 hover:border-blue-500/40"
+        {/* Module 1: Path Planner (NEW) */}
+        <Link href="/dashboard" 
+          className="group relative overflow-hidden bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-8 transition-all duration-500 hover:border-green-500/40 flex flex-col"
         >
-          {/* Subtle Inner Glow */}
+          {/* Green Glow */}
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          
+          <div className="relative z-10 flex-1 flex flex-col">
+            <div className="w-14 h-14 mb-6 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-500 group-hover:scale-110 group-hover:bg-green-500 group-hover:text-white transition-all duration-500">
+              <Map size={28} />
+            </div>
+            <h2 className="text-2xl font-bold mb-4 text-white tracking-tight">Career Architect</h2>
+            <p className="text-gray-400 mb-8 text-sm leading-relaxed flex-1">
+              Input your dream role. Our multi-agent system plans the milestones, scrapes resources, and schedules your success.
+            </p>
+            <div className="flex items-center gap-2 text-sm font-bold text-green-400 mt-auto">
+              Generate Roadmap <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </Link>
+
+        {/* Module 2: Resume Analyzer */}
+        <Link href="/resume-analyzer" 
+          className="group relative overflow-hidden bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-8 transition-all duration-500 hover:border-blue-500/40 flex flex-col"
+        >
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           
-          <div className="relative z-10">
-            <div className="w-14 h-14 mb-8 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all duration-500">
+          <div className="relative z-10 flex-1 flex flex-col">
+            <div className="w-14 h-14 mb-6 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all duration-500">
               <FileText size={28} />
             </div>
-            <h2 className="text-3xl font-bold mb-4 text-white tracking-tight">Resume Audit</h2>
-            <p className="text-gray-400 mb-10 text-lg leading-relaxed">
+            <h2 className="text-2xl font-bold mb-4 text-white tracking-tight">Resume Audit</h2>
+            <p className="text-gray-400 mb-8 text-sm leading-relaxed flex-1">
               Upload your resume and JD. Our agent scans for missing keywords, suggests project ideas, and builds a study roadmap.
             </p>
-            <div className="flex items-center gap-2 text-sm font-bold text-blue-400">
+            <div className="flex items-center gap-2 text-sm font-bold text-blue-400 mt-auto">
               Launch Analyzer <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </Link>
 
-        {/* Module 2: Interview Simulator */}
+        {/* Module 3: Interview Simulator */}
         <Link href="/interview-prep" 
-          className="group relative overflow-hidden bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-10 transition-all duration-500 hover:border-purple-500/40"
+          className="group relative overflow-hidden bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-8 transition-all duration-500 hover:border-purple-500/40 flex flex-col"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          <div className="relative z-10">
-            <div className="w-14 h-14 mb-8 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-500">
+          <div className="relative z-10 flex-1 flex flex-col">
+            <div className="w-14 h-14 mb-6 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 group-hover:bg-purple-500 group-hover:text-white transition-all duration-500">
               <Brain size={28} />
             </div>
-            <h2 className="text-3xl font-bold mb-4 text-white tracking-tight">AI Interviewer</h2>
-            <p className="text-gray-400 mb-10 text-lg leading-relaxed">
+            <h2 className="text-2xl font-bold mb-4 text-white tracking-tight">AI Interviewer</h2>
+            <p className="text-gray-400 mb-8 text-sm leading-relaxed flex-1">
               Real-time voice/text mock interviews. Get instant feedback on clarity, confidence, and technical accuracy.
             </p>
-            <div className="flex items-center gap-2 text-sm font-bold text-purple-400">
+            <div className="flex items-center gap-2 text-sm font-bold text-purple-400 mt-auto">
               Start Interview <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
