@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "dev": "next dev",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -33,6 +33,11 @@
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.4.0",
     "zod": "^3.25.76"
+  },
+  "overrides": {
+    "@langchain/community": {
+      "pdf-parse": "1.1.1"
+    }
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
