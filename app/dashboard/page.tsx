@@ -164,8 +164,8 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress, on
           <div>
             <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Daily Goal</p>
             <div className="flex items-baseline gap-1 mt-1">
-              <h3 className="text-2xl font-bold text-white">{dailyGoal.minsCompleted}</h3>
-              <span className="text-gray-500 text-sm">/ {dailyGoal.targetMins}m</span>
+              <h3 className="text-2xl font-bold text-white">{dailyGoal?.minsCompleted || 0}</h3>
+              <span className="text-gray-500 text-sm">/ {dailyGoal?.targetMins || 0}m</span>
             </div>
           </div>
           <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center text-green-400">
@@ -173,7 +173,7 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress, on
           </div>
         </div>
         <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden">
-          <div className="bg-green-500 h-full rounded-full" style={{ width: `${dailyGoal.progressPercentage}%` }} />
+          <div className="bg-green-500 h-full rounded-full" style={{ width: `${dailyGoal?.progressPercentage || 0}%` }} />
         </div>
       </div>
 
@@ -186,7 +186,7 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress, on
           <div>
             <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Badges</p>
             <h3 className="text-2xl font-bold text-white mt-1 group-hover:text-yellow-400 transition-colors">
-              {progress.achievements.length}
+              {progress.achievements?.length || 0}
             </h3>
           </div>
           <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center text-yellow-400 group-hover:scale-110 transition-transform">
@@ -975,13 +975,13 @@ export default function Dashboard() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-4 custom-scrollbar">
-              {userProgress?.achievements.length === 0 ? (
+              {(userProgress?.achievements?.length || 0) === 0 ? (
                 <div className="col-span-full text-center py-10 text-gray-500">
                   <Award size={40} className="mx-auto mb-3 opacity-20"/>
                   <p>No badges earned yet. Keep learning!</p>
                 </div>
               ) : (
-                userProgress?.achievements.map((badge, i) => (
+                userProgress?.achievements?.map((badge, i) => (
                   <div key={i} className="bg-[#151515] border border-white/5 rounded-xl p-4 flex flex-col items-center text-center gap-2">
                     <div className="text-4xl mb-2">{badge.badgeIcon}</div>
                     <h3 className="font-bold text-white text-sm">{badge.badgeName}</h3>

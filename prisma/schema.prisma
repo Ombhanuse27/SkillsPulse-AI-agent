@@ -73,26 +73,40 @@ model Education {
   year        String?
 }
 
-// --- NEW INTERVIEW MODELS ---
 model InterviewSession {
-  id        String   @id @default(uuid())
-  role      String   // e.g., "Full Stack Developer"
-  type      String   // "TECHNICAL", "BEHAVIORAL", "MOCK"
-  messages  InterviewMessage[]
-  createdAt DateTime @default(now())
+  id         String             @id @default(uuid())
+  role       String             // e.g., "Full Stack Developer"
+  type       String             // "TECHNICAL" | "BEHAVIORAL" | "SYSTEM_DESIGN" | "MIXED"
+  difficulty String             @default("MID") // "JUNIOR" | "MID" | "SENIOR" | "STAFF"
+  topics     String?            // Optional comma-separated focus topics, e.g. "React, Docker"
+  status     String             @default("ACTIVE") // "ACTIVE" | "COMPLETED"
+  summary    Json?              // Stores the final FinalReport JSON when status = COMPLETED
+
+  messages   InterviewMessage[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model InterviewMessage {
-  id        String   @id @default(uuid())
-  sessionId String
-  session   InterviewSession @relation(fields: [sessionId], references: [id])
-  sender    String   // "USER" or "AI"
-  content   String   @db.Text
-  
-  // JSON field to store AI analysis of the user's specific answer
-  metrics   Json?    // { score: 85, clarity: "High", feedback: "..." }
-  
-  createdAt DateTime @default(now())
+  id             String           @id @default(uuid())
+  sessionId      String
+  session        InterviewSession @relation(fields: [sessionId], references: [id])
+
+  sender         String           // "USER" | "AI"
+  content        String           @db.Text
+
+  // AI evaluation data stored per USER answer turn
+  // Shape: { score: number, feedback: string, betterAnswer: string, topicsCovered: string[] }
+  metrics        Json?
+
+  questionNumber Int?             // Which question in the sequence this message belongs to
+  isHint         Boolean          @default(false) // True if this was a hint message
+
+  createdAt      DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, sender])
 }
 
 model User {

@@ -1,90 +1,208 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { processInterviewTurn } from "@/lib/interview-agent";
-
+import {
+  processInterviewTurn,
+  generateHint,
+  generateFinalReport,
+} from "@/lib/interview-agent";
 
 const prisma = new PrismaClient();
+
+// Helper: try to create a session with all new fields; fall back to base fields
+// if the migration hasn't been run yet (Prisma will throw a validation error).
+async function upsertSession(id: string | undefined, role: string, type: string, difficulty: string, topics?: string) {
+  const baseData = {
+    role: role   || "General Software Engineer",
+    type: type   || "TECHNICAL",
+  };
+
+  const fullData = {
+    ...baseData,
+    difficulty: difficulty || "MID",
+    topics:     topics     || null,
+  };
+
+  if (id) {
+    // Check if session already exists
+    const existing = await prisma.interviewSession.findUnique({ where: { id } });
+    if (existing) return id; // already there — no action needed
+
+    // Try with new fields first, fall back to base fields if schema isn't migrated
+    try {
+      await prisma.interviewSession.create({ data: { id, ...fullData } });
+    } catch {
+      await prisma.interviewSession.create({ data: { id, ...baseData } });
+    }
+    return id;
+  } else {
+    // No client-supplied ID — let Prisma auto-generate one
+    try {
+      const s = await prisma.interviewSession.create({ data: fullData });
+      return s.id;
+    } catch {
+      const s = await prisma.interviewSession.create({ data: baseData });
+      return s.id;
+    }
+  }
+}
+
+// Helper: try to mark session completed with summary; silently skip if columns missing
+async function completeSession(id: string, summary: object) {
+  try {
+    await prisma.interviewSession.update({
+      where: { id },
+      data:  { status: "COMPLETED", summary },
+    });
+  } catch {
+    // Columns don't exist yet — migration pending; silently ignore
+  }
+}
+
+// Helper: create a message with new fields, falling back if columns don't exist
+async function createMessage(data: {
+  sessionId:      string;
+  sender:         string;
+  content:        string;
+  metrics?:       object;
+  questionNumber?: number;
+  isHint?:        boolean;
+}) {
+  const base = {
+    sessionId: data.sessionId,
+    sender:    data.sender,
+    content:   data.content,
+    metrics:   data.metrics,
+  };
+  try {
+    await prisma.interviewMessage.create({
+      data: {
+        ...base,
+        questionNumber: data.questionNumber,
+        isHint:         data.isHint ?? false,
+      },
+    });
+  } catch {
+    // Fallback: create without new columns
+    await prisma.interviewMessage.create({ data: base });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userAnswer, currentQuestion } = body;
-    let { sessionId, role } = body;
+    const {
+      action = "answer",
+      userAnswer,
+      currentQuestion,
+    } = body;
 
-    // --- STEP 1: Ensure Session Exists ---
-    // The frontend might send a locally generated UUID that isn't in the DB yet.
-    
-    if (sessionId) {
-      const existingSession = await prisma.interviewSession.findUnique({
-        where: { id: sessionId },
-      });
+    let {
+      sessionId,
+      role,
+      interviewType,
+      difficulty,
+      topics,
+      questionNumber,
+      maxQuestions,
+      hintUsed,
+    } = body;
 
-      if (!existingSession) {
-        // Client sent an ID, but DB doesn't have it. Create it now.
-        console.log(`Creating new session for ID: ${sessionId}`);
-        await prisma.interviewSession.create({
-          data: {
-            id: sessionId, // Use the ID the client provided to keep them in sync
-            role: role || "General Software Engineer",
-            type: "TECHNICAL",
-          },
-        });
-      }
-    } else {
-      // No ID provided? Create a brand new one.
-      const newSession = await prisma.interviewSession.create({
-        data: {
-          role: role || "General Software Engineer",
-          type: "TECHNICAL",
-        },
+    // ── HINT ACTION ─────────────────────────────────────────────────────────────
+    if (action === "hint") {
+      const hintResult = await generateHint({
+        currentQuestion: currentQuestion || "",
+        jobRole:         role            || "Software Engineer",
+        interviewType:   interviewType   || "TECHNICAL",
+        difficulty:      difficulty      || "MID",
       });
-      sessionId = newSession.id;
+      return NextResponse.json(hintResult);
     }
 
-    // --- STEP 2: Save User Answer ---
-    // Now safe because we guaranteed the 'sessionId' exists above.
-    await prisma.interviewMessage.create({
-      data: {
-        sessionId,
-        sender: "USER",
-        content: userAnswer,
-      },
+    // ── ANSWER ACTION ────────────────────────────────────────────────────────────
+
+    // Step 1: Ensure session exists (handles both migrated and non-migrated schemas)
+    sessionId = await upsertSession(sessionId, role, interviewType, difficulty, topics);
+
+    // Step 2: Save user's answer
+    await createMessage({
+      sessionId,
+      sender:         "USER",
+      content:        userAnswer,
+      questionNumber: questionNumber || 1,
+      isHint:         false,
     });
 
-    // --- STEP 3: Fetch Context & Process with AI ---
+    // Step 3: Fetch recent context for the AI
     const recentMessages = await prisma.interviewMessage.findMany({
-      where: { sessionId },
+      where:   { sessionId },
       orderBy: { createdAt: "desc" },
-      take: 4,
+      take:    8,
     });
 
-    // Convert to history format for the AI
     const history = recentMessages
       .reverse()
-      .map((m) => `${m.sender}: ${m.content}`);
+      .map(m => `${m.sender}: ${m.content}`);
 
-    // AI Agent Call
-    const aiResponse = await processInterviewTurn(
-      currentQuestion || "Introduction",
+    // Step 4: AI evaluation
+    const aiResponse = await processInterviewTurn({
+      currentQuestion: currentQuestion || "Introduction",
       userAnswer,
       history,
-      role || "Software Engineer"
-    );
+      jobRole:        role          || "Software Engineer",
+      interviewType:  interviewType || "TECHNICAL",
+      difficulty:     difficulty    || "MID",
+      topics,
+      questionNumber: questionNumber  || 1,
+      maxQuestions:   maxQuestions    || 7,
+      hintUsed:       hintUsed        || false,
+    });
 
-    // --- STEP 4: Save AI Response ---
-    await prisma.interviewMessage.create({
-      data: {
-        sessionId,
-        sender: "AI",
-        content: aiResponse.nextQuestion,
-        metrics: {
-          feedback: aiResponse.feedback,
-          score: aiResponse.score,
-          betterAnswer: aiResponse.betterAnswer,
-        },
+    // Step 5: Save AI response
+    await createMessage({
+      sessionId,
+      sender:         "AI",
+      content:        aiResponse.nextQuestion,
+      questionNumber: (questionNumber || 1) + 1,
+      isHint:         false,
+      metrics: {
+        score:         aiResponse.score,
+        feedback:      aiResponse.feedback,
+        betterAnswer:  aiResponse.betterAnswer,
+        topicsCovered: aiResponse.topicsCovered,
       },
     });
 
-    return NextResponse.json({ ...aiResponse, sessionId });
+    // Step 6: Generate final report if interview is over
+    let finalReport = null;
+
+    if (aiResponse.isInterviewOver) {
+      const allMessages = await prisma.interviewMessage.findMany({
+        where:   { sessionId },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const fullHistory = allMessages.map(m => `${m.sender}: ${m.content}`);
+
+      const allScores = allMessages
+        .filter(m => m.sender === "AI" && m.metrics)
+        .map(m => (m.metrics as { score?: number })?.score ?? 0)
+        .filter(s => s > 0);
+
+      const finalScores = allScores.length ? allScores : [aiResponse.score];
+
+      finalReport = await generateFinalReport({
+        history:       fullHistory,
+        jobRole:       role          || "Software Engineer",
+        interviewType: interviewType || "TECHNICAL",
+        difficulty:    difficulty    || "MID",
+        scores:        finalScores,
+      });
+
+      // Persist report (silently skips if columns aren't migrated yet)
+      await completeSession(sessionId, finalReport as object);
+    }
+
+    return NextResponse.json({ ...aiResponse, sessionId, finalReport });
 
   } catch (error) {
     console.error("Interview Route Error:", error);
