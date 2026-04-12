@@ -177,6 +177,7 @@ model MilestoneProgress {
   userId      String
   milestoneId String
   status      String   @default("not_started") // not_started, in_progress, completed
+  testResult  Json?   // stores { grade, score, total, attempts, passed, xpEarned, lastAttemptAt }
   
   // Progress details
   startedAt     DateTime?

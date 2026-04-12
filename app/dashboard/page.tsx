@@ -11,7 +11,8 @@ import {
   Loader2, Play, CheckCircle, ExternalLink, Map, LogOut, Code, Video,
   Sparkles, GraduationCap, MessageSquare, X, Send, ChevronRight,
   BookOpen, Zap, Brain, Trophy, Flame, Target, Lock, Clock, Award,
-  FileText, Menu, Home, ChevronDown, Cpu, ClipboardList,
+  FileText, Menu, Home, ChevronDown, Cpu, ClipboardList, RefreshCw,
+  AlertCircle, Star,
 } from 'lucide-react';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -40,6 +41,16 @@ interface TestQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
 }
 
+interface TestResult {
+  grade: string;
+  score: number;
+  total: number;
+  attempts: number;
+  passed: boolean;
+  xpEarned: number;
+  lastAttemptAt: string;
+}
+
 interface UserProgress {
   stats: {
     level: number;
@@ -65,16 +76,16 @@ const NAV_ITEMS = [
   { label: 'AI Interviewer',   href: '/interview-prep',   icon: Brain,    color: 'text-purple-400', },
 ];
 
-// ─── MISSION XP COST ────────────────────────────────────────────────────────────
 const MISSION_XP_COST = 100;
+const TEST_RETRY_XP_COST = 50;
+const PASSING_GRADES = new Set(['S', 'A', 'B']);
 
-// ─── GRADE CONFIG ──────────────────────────────────────────────────────────────
-const GRADE_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; desc: string }> = {
-  S: { label: 'S', color: 'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40', desc: 'Perfect Score! Master Level 🏆' },
-  A: { label: 'A', color: 'text-green-300',  bg: 'bg-green-500/15',  border: 'border-green-500/40',  desc: 'Excellent! You nailed it 🎯' },
-  B: { label: 'B', color: 'text-blue-300',   bg: 'bg-blue-500/15',   border: 'border-blue-500/40',   desc: 'Good Job! Solid understanding 👍' },
-  C: { label: 'C', color: 'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40', desc: 'Needs Review — revisit the topic 📖' },
-  F: { label: 'F', color: 'text-red-300',    bg: 'bg-red-500/15',    border: 'border-red-500/40',    desc: 'Keep Studying — you got this 💪' },
+const GRADE_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; desc: string; emoji: string }> = {
+  S: { label: 'S', color: 'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40', desc: 'Perfect Score! Master Level 🏆', emoji: '🏆' },
+  A: { label: 'A', color: 'text-green-300',  bg: 'bg-green-500/15',  border: 'border-green-500/40',  desc: 'Excellent! You nailed it 🎯',  emoji: '🎯' },
+  B: { label: 'B', color: 'text-blue-300',   bg: 'bg-blue-500/15',   border: 'border-blue-500/40',   desc: 'Good Job! Solid understanding 👍', emoji: '👍' },
+  C: { label: 'C', color: 'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40', desc: 'Needs Review — revisit the topic 📖', emoji: '📖' },
+  F: { label: 'F', color: 'text-red-300',    bg: 'bg-red-500/15',    border: 'border-red-500/40',    desc: 'Keep Studying — you got this 💪',  emoji: '💪' },
 };
 
 function getGrade(score: number, total: number): string {
@@ -263,7 +274,6 @@ function AgentCards() {
   );
 }
 
-// ─── INLINE QUIZ (Neural Mentor) ──────────────────────────────────────────────
 function InteractiveQuiz({ quiz, userAnswer, onAnswer }: { quiz: QuizData; userAnswer?: number; onAnswer: (index: number) => void; }) {
   const answered = userAnswer !== undefined;
   return (
@@ -301,7 +311,6 @@ function InteractiveQuiz({ quiz, userAnswer, onAnswer }: { quiz: QuizData; userA
   );
 }
 
-// ─── CIRCULAR PROGRESS RING ───────────────────────────────────────────────────
 function ProgressRing({ pct, size = 44, stroke = 3, color = '#3b82f6' }: { pct: number; size?: number; stroke?: number; color?: string; }) {
   const r = (size - stroke * 2) / 2;
   const circ = 2 * Math.PI * r;
@@ -320,7 +329,24 @@ function StatusPill({ status }: { status: string }) {
   return null;
 }
 
-// ─── ★ TEST MODAL ─────────────────────────────────────────────────────────────
+// ─── GRADE PILL — shows score + grade letter inline ───────────────────────────
+function GradePill({ testResult }: { testResult: TestResult }) {
+  const cfg = GRADE_CONFIG[testResult.grade] ?? GRADE_CONFIG['F'];
+  const isPassed = PASSING_GRADES.has(testResult.grade);
+  return (
+    <span
+      title={`${cfg.desc} · ${testResult.attempts} attempt${testResult.attempts !== 1 ? 's' : ''}`}
+      className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border ${cfg.color} ${cfg.bg} ${cfg.border} cursor-default shrink-0`}
+    >
+      {isPassed
+        ? <CheckCircle size={7} className="opacity-80" />
+        : <Star size={7} className="opacity-80" />}
+      {testResult.score}/{testResult.total} · {testResult.grade}
+    </span>
+  );
+}
+
+// ─── TEST MODAL ───────────────────────────────────────────────────────────────
 function TestModal({
   milestone,
   onClose,
@@ -337,13 +363,12 @@ function TestModal({
   const [showExplanation, setShowExplanation] = useState(false);
   const [error, setError] = useState('');
 
-  // Computed results
   const score = selectedAnswers.filter((a, i) => questions[i] && a === questions[i].correctIndex).length;
   const grade = questions.length > 0 ? getGrade(score, questions.length) : 'F';
   const gradeConfig = GRADE_CONFIG[grade];
   const xpEarned = questions.length > 0 ? getTestXP(score, questions.length) : 0;
+  const isPassed = PASSING_GRADES.has(grade);
 
-  // Fetch questions on mount
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -369,7 +394,7 @@ function TestModal({
   }, [milestone.id]);
 
   const handleSelect = (optionIdx: number) => {
-    if (selectedAnswers[currentQ] !== null) return; // already answered
+    if (selectedAnswers[currentQ] !== null) return;
     const updated = [...selectedAnswers];
     updated[currentQ] = optionIdx;
     setSelectedAnswers(updated);
@@ -381,8 +406,7 @@ function TestModal({
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      setPhase('results');
-      // Build answers array
+      // Build answers first, then call onComplete, then show results
       const answers = questions.map((q, i) => ({
         questionIndex: i,
         selectedIndex: selectedAnswers[i] ?? -1,
@@ -390,6 +414,7 @@ function TestModal({
         isCorrect: selectedAnswers[i] === q.correctIndex,
       }));
       onComplete(score, questions.length, answers);
+      setPhase('results');
     }
   };
 
@@ -399,11 +424,8 @@ function TestModal({
     'text-red-400 bg-red-500/10 border-red-500/20';
 
   return (
-    // Overlay — uses min-height trick (no position:fixed) for iframe compat
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
       <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-
-        {/* Header */}
         <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-gradient-to-r from-purple-600/8 to-blue-600/5">
           <div className="min-w-0">
             <h2 className="font-black text-white flex items-center gap-2 text-sm">
@@ -415,10 +437,8 @@ function TestModal({
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/4 hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition-all shrink-0"><X size={16} /></button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-
-          {/* ── LOADING ── */}
+          {/* LOADING */}
           {phase === 'loading' && (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/20">
@@ -429,21 +449,13 @@ function TestModal({
             </div>
           )}
 
-          {/* ── QUESTIONS ── */}
+          {/* QUESTIONS */}
           {phase === 'questions' && questions.length > 0 && (
             <div className="p-6">
-              {/* Progress bar */}
               <div className="flex items-center gap-3 mb-6">
                 <div className="flex gap-1.5">
                   {questions.map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        i < currentQ ? 'w-6 bg-green-500' :
-                        i === currentQ ? 'w-8 bg-blue-500' :
-                        'w-4 bg-white/10'
-                      }`}
-                    />
+                    <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i < currentQ ? 'w-6 bg-green-500' : i === currentQ ? 'w-8 bg-blue-500' : 'w-4 bg-white/10'}`} />
                   ))}
                 </div>
                 <span className="text-[11px] text-gray-600 shrink-0">Q{currentQ + 1} of {questions.length}</span>
@@ -452,38 +464,23 @@ function TestModal({
                 </span>
               </div>
 
-              {/* Question */}
-              <p className="text-white font-bold text-base leading-relaxed mb-5">
-                {questions[currentQ]?.question}
-              </p>
+              <p className="text-white font-bold text-base leading-relaxed mb-5">{questions[currentQ]?.question}</p>
 
-              {/* Options */}
               <div className="space-y-2.5">
                 {questions[currentQ]?.options.map((opt, idx) => {
                   const answered = selectedAnswers[currentQ] !== null;
                   const isSelected = selectedAnswers[currentQ] === idx;
                   const isCorrect = idx === questions[currentQ].correctIndex;
-
                   let cls = 'bg-white/4 border-white/8 text-gray-300 hover:bg-white/8 hover:border-white/20 cursor-pointer';
                   if (answered) {
                     if (isCorrect) cls = 'bg-green-500/20 border-green-500/60 text-green-200 cursor-default';
                     else if (isSelected) cls = 'bg-red-500/20 border-red-500/60 text-red-200 cursor-default';
                     else cls = 'bg-white/2 border-white/5 text-gray-600 cursor-default opacity-50';
                   }
-
                   return (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelect(idx)}
-                      disabled={selectedAnswers[currentQ] !== null}
-                      className={`w-full text-left px-4 py-3 rounded-2xl border transition-all duration-200 ${cls}`}
-                    >
+                    <button key={idx} onClick={() => handleSelect(idx)} disabled={selectedAnswers[currentQ] !== null} className={`w-full text-left px-4 py-3 rounded-2xl border transition-all duration-200 ${cls}`}>
                       <div className="flex items-center gap-3">
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0 ${
-                          answered && isCorrect ? 'bg-green-500 text-black' :
-                          answered && isSelected && !isCorrect ? 'bg-red-500 text-white' :
-                          'bg-white/8 text-gray-400'
-                        }`}>
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0 ${answered && isCorrect ? 'bg-green-500 text-black' : answered && isSelected && !isCorrect ? 'bg-red-500 text-white' : 'bg-white/8 text-gray-400'}`}>
                           {String.fromCharCode(65 + idx)}
                         </span>
                         <span className="text-sm leading-relaxed">{opt}</span>
@@ -495,13 +492,8 @@ function TestModal({
                 })}
               </div>
 
-              {/* Explanation */}
               {showExplanation && selectedAnswers[currentQ] !== null && (
-                <div className={`mt-4 p-4 rounded-2xl border ${
-                  selectedAnswers[currentQ] === questions[currentQ].correctIndex
-                    ? 'bg-green-500/8 border-green-500/25'
-                    : 'bg-orange-500/8 border-orange-500/25'
-                }`}>
+                <div className={`mt-4 p-4 rounded-2xl border ${selectedAnswers[currentQ] === questions[currentQ].correctIndex ? 'bg-green-500/8 border-green-500/25' : 'bg-orange-500/8 border-orange-500/25'}`}>
                   <p className="text-xs font-bold mb-1 text-white">
                     {selectedAnswers[currentQ] === questions[currentQ].correctIndex ? '✓ Correct!' : '✗ Not quite'}
                   </p>
@@ -509,17 +501,9 @@ function TestModal({
                 </div>
               )}
 
-              {/* Next / Submit */}
               {selectedAnswers[currentQ] !== null && (
-                <button
-                  onClick={handleNext}
-                  className="mt-5 w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
-                >
-                  {currentQ < questions.length - 1 ? (
-                    <><ChevronRight size={16} />Next Question</>
-                  ) : (
-                    <><Trophy size={16} />Submit Test</>
-                  )}
+                <button onClick={handleNext} className="mt-5 w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm">
+                  {currentQ < questions.length - 1 ? <><ChevronRight size={16} />Next Question</> : <><Trophy size={16} />Submit Test</>}
                 </button>
               )}
             </div>
@@ -528,30 +512,34 @@ function TestModal({
           {/* Error state */}
           {phase === 'questions' && questions.length === 0 && error && (
             <div className="flex flex-col items-center justify-center py-20 gap-4 px-6 text-center">
-              <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20">
-                <X size={20} className="text-red-400" />
-              </div>
+              <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20"><X size={20} className="text-red-400" /></div>
               <p className="text-gray-400 text-sm">{error}</p>
               <button onClick={onClose} className="text-xs text-blue-400 hover:text-blue-300">Close</button>
             </div>
           )}
 
-          {/* ── RESULTS ── */}
+          {/* RESULTS */}
           {phase === 'results' && (
             <div className="p-6">
-              {/* Score card */}
               <div className={`rounded-3xl border p-6 text-center mb-6 ${gradeConfig.bg} ${gradeConfig.border}`}>
                 <div className={`text-7xl font-black mb-2 ${gradeConfig.color}`}>{gradeConfig.label}</div>
                 <p className={`text-sm font-bold mb-1 ${gradeConfig.color}`}>{gradeConfig.desc}</p>
                 <p className="text-gray-500 text-xs">{score}/{questions.length} correct answers</p>
-
-                {/* XP badge */}
                 <div className="inline-flex items-center gap-1.5 mt-3 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1.5 text-xs font-bold text-blue-400">
                   <Zap size={12} />+{xpEarned} XP earned
                 </div>
+                {!isPassed && (
+                  <div className="mt-3 inline-flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1.5 text-xs font-bold text-orange-400">
+                    <RefreshCw size={11} />Retry available for {TEST_RETRY_XP_COST} XP
+                  </div>
+                )}
+                {isPassed && (
+                  <div className="mt-3 inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1.5 text-xs font-bold text-green-400">
+                    <CheckCircle size={11} />Milestone test passed!
+                  </div>
+                )}
               </div>
 
-              {/* Per-question breakdown */}
               <div className="space-y-2 mb-6">
                 <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-3">Question Breakdown</p>
                 {questions.map((q, i) => {
@@ -563,26 +551,15 @@ function TestModal({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-white font-medium leading-relaxed">{q.question}</p>
-                        {!isCorrect && (
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            Correct: <span className="text-green-400">{q.options[q.correctIndex]}</span>
-                          </p>
-                        )}
+                        {!isCorrect && <p className="text-[11px] text-gray-500 mt-0.5">Correct: <span className="text-green-400">{q.options[q.correctIndex]}</span></p>}
                       </div>
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${
-                        q.difficulty === 'easy' ? 'bg-green-500/15 text-green-400' :
-                        q.difficulty === 'medium' ? 'bg-yellow-500/15 text-yellow-400' :
-                        'bg-red-500/15 text-red-400'
-                      }`}>{q.difficulty}</span>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${q.difficulty === 'easy' ? 'bg-green-500/15 text-green-400' : q.difficulty === 'medium' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-red-500/15 text-red-400'}`}>{q.difficulty}</span>
                     </div>
                   );
                 })}
               </div>
 
-              <button
-                onClick={onClose}
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3 rounded-2xl transition-all text-sm"
-              >
+              <button onClick={onClose} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3 rounded-2xl transition-all text-sm">
                 Close
               </button>
             </div>
@@ -593,10 +570,62 @@ function TestModal({
   );
 }
 
-// ─── ROADMAP CARD (ACCORDION) ─────────────────────────────────────────────────
+// ─── TEST BUTTON ──────────────────────────────────────────────────────────────
+// Reads testResult from milestone.progress OR from the localTestResults override map.
+function TestButton({
+  milestone,
+  localTestResults,
+  onOpenTest,
+}: {
+  milestone: any;
+  localTestResults: Record<string, TestResult>;
+  onOpenTest: (m: any) => void;
+}) {
+  // Prefer locally-cached result (set immediately after test submit) over stale Redux data
+  const testResult: TestResult | undefined =
+    localTestResults[milestone.id] ?? milestone.progress?.testResult;
+
+  if (!testResult) {
+    return (
+      <button
+        onClick={() => onOpenTest(milestone)}
+        className="text-[11px] bg-purple-500/8 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 hover:border-purple-500/30 px-2.5 py-1.5 rounded-lg flex gap-1.5 items-center border border-purple-500/15 transition-all font-bold"
+      >
+        <ClipboardList size={10} />Test
+      </button>
+    );
+  }
+
+  const isPassed = PASSING_GRADES.has(testResult.grade);
+  const cfg = GRADE_CONFIG[testResult.grade] ?? GRADE_CONFIG['F'];
+
+  if (isPassed) {
+    return (
+      <span
+        title={`${cfg.desc} · ${testResult.score}/${testResult.total} · ${testResult.attempts} attempt${testResult.attempts !== 1 ? 's' : ''}`}
+        className={`text-[11px] px-2.5 py-1.5 rounded-lg flex gap-1.5 items-center border font-black cursor-default ${cfg.color} ${cfg.bg} ${cfg.border}`}
+      >
+        <Trophy size={10} />Grade {testResult.grade} ✓
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onOpenTest(milestone)}
+      title={`Grade ${testResult.grade} (${testResult.score}/${testResult.total}). Retry costs ${TEST_RETRY_XP_COST} XP.`}
+      className="text-[11px] bg-orange-500/8 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 hover:border-orange-500/30 px-2.5 py-1.5 rounded-lg flex gap-1.5 items-center border border-orange-500/15 transition-all font-bold"
+    >
+      <RefreshCw size={10} />Retry
+      <span className="text-[9px] opacity-70 ml-0.5">({TEST_RETRY_XP_COST} XP)</span>
+    </button>
+  );
+}
+
+// ─── ROADMAP CARD ─────────────────────────────────────────────────────────────
 function RoadmapCard({
   map, isExpanded, onToggle, onMilestoneClick, onStartMilestone, onCompleteMilestone,
-  onTrackResource, onAskMentor, onOpenTest, isDailyCourse,
+  onTrackResource, onAskMentor, onOpenTest, isDailyCourse, localTestResults,
 }: {
   map: any; isExpanded: boolean; onToggle: () => void;
   onMilestoneClick: (m: any) => void; onStartMilestone: (m: any) => void;
@@ -604,6 +633,7 @@ function RoadmapCard({
   onAskMentor: (mode: 'chat' | 'explain' | 'quiz', m?: any) => void;
   onOpenTest: (m: any) => void;
   isDailyCourse: boolean;
+  localTestResults: Record<string, TestResult>;
 }) {
   const completedCount = map.milestones.filter((m: any) => m.progress?.status === 'completed').length;
   const pct = map.completionPercentage;
@@ -611,7 +641,6 @@ function RoadmapCard({
 
   return (
     <div className={`bg-[#0a0a0a] border rounded-2xl overflow-hidden transition-all duration-300 ${isExpanded ? 'border-white/15 shadow-xl shadow-black/30' : 'border-white/8 hover:border-white/12'}`}>
-      {/* Header */}
       <button onClick={onToggle} className="w-full px-5 py-4 flex items-center gap-4 text-left group">
         <div className="relative shrink-0">
           <ProgressRing pct={pct} size={44} stroke={3} color={pct === 100 ? '#22c55e' : '#3b82f6'} />
@@ -645,17 +674,18 @@ function RoadmapCard({
         </div>
       </button>
 
-      {/* Body */}
       <div className={`overflow-hidden transition-all duration-400 ease-in-out ${isExpanded ? 'max-h-[9999px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="border-t border-white/5 px-5 pb-5 pt-4 relative before:absolute before:left-[1.625rem] before:top-0 before:bottom-5 before:w-px before:bg-gradient-to-b before:from-white/8 before:to-transparent">
           {map.milestones.map((milestone: any, idx: number) => {
             const status = milestone.progress?.status || 'not_started';
             const isLocked = idx > 0 && map.milestones[idx - 1].progress?.status !== 'completed';
             const isLast = idx === map.milestones.length - 1;
+            // Prefer local result for display too
+            const testResult: TestResult | undefined =
+              localTestResults[milestone.id] ?? milestone.progress?.testResult;
 
             return (
               <div key={idx} className={`relative pl-10 transition-all duration-300 ${isLocked ? 'opacity-35' : 'opacity-100'} ${isLast ? '' : 'pb-6'}`}>
-                {/* Node */}
                 <div
                   onClick={() => !isLocked && onMilestoneClick(milestone)}
                   className={`absolute left-0 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-[9px] font-black z-10 transition-all duration-200 ${
@@ -668,7 +698,6 @@ function RoadmapCard({
                   {status === 'completed' ? <CheckCircle size={11} /> : isLocked ? <Lock size={9} /> : status === 'in_progress' ? <Play size={8} fill="currentColor" /> : <span>{idx + 1}</span>}
                 </div>
 
-                {/* Content */}
                 <div className={`group/ms ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={() => !isLocked && onMilestoneClick(milestone)}>
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
@@ -677,19 +706,27 @@ function RoadmapCard({
                           {milestone.title}
                         </h4>
                         <StatusPill status={status} />
+                        {testResult && <GradePill testResult={testResult} />}
                       </div>
                       <p className="text-gray-500 text-[11px] mt-0.5 leading-relaxed">{milestone.description}</p>
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-600">
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-gray-600 flex-wrap">
                         <Clock size={9} />
                         <span>{isDailyCourse ? `Day ${idx + 1}` : `Week ${milestone.week || idx + 1}`}</span>
                         <span className="text-white/10">·</span>
                         <span>{milestone.estimatedHours}h est.</span>
+                        {testResult && (
+                          <>
+                            <span className="text-white/10">·</span>
+                            <span className={PASSING_GRADES.has(testResult.grade) ? 'text-green-600' : 'text-orange-600'}>
+                              {testResult.attempts} attempt{testResult.attempts !== 1 ? 's' : ''}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Action strip */}
                 {!isLocked && (
                   <div className="flex gap-2 mt-2.5 flex-wrap items-center" onClick={(e) => e.stopPropagation()}>
                     {status === 'not_started' && (
@@ -712,25 +749,17 @@ function RoadmapCard({
                     <button onClick={() => onMilestoneClick(milestone)} className="text-[11px] bg-white/4 hover:bg-blue-500/10 hover:text-blue-300 hover:border-blue-500/20 px-2.5 py-1.5 rounded-lg flex gap-1.5 items-center border border-white/5 transition-all">
                       <MessageSquare size={10} className="text-blue-400" />Ask AI
                     </button>
-                    {/* ── NEW: Test button ── */}
-                    <button
-                      onClick={() => onOpenTest(milestone)}
-                      className="text-[11px] bg-purple-500/8 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 hover:border-purple-500/30 px-2.5 py-1.5 rounded-lg flex gap-1.5 items-center border border-purple-500/15 transition-all font-bold"
-                    >
-                      <ClipboardList size={10} />Test
-                    </button>
+                    <TestButton milestone={milestone} localTestResults={localTestResults} onOpenTest={onOpenTest} />
                   </div>
                 )}
 
-                {/* Resources */}
                 {milestone.resources && milestone.resources.length > 0 && !isLocked && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-3" onClick={(e) => e.stopPropagation()}>
                     {milestone.resources.map((res: any, rId: number) => {
                       const isViewed = milestone.progress?.resourcesViewed?.includes(res.id || res.url);
                       return (
                         <a key={rId} href={res.url} target="_blank" rel="noopener noreferrer" onClick={() => onTrackResource(milestone, res.id || res.url)}
-                          className={`flex items-center gap-2.5 border p-2.5 rounded-xl transition-all group/link text-xs ${isViewed ? 'bg-blue-900/10 border-blue-500/20 text-blue-300' : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/12 text-gray-400 hover:text-white'}`}
-                        >
+                          className={`flex items-center gap-2.5 border p-2.5 rounded-xl transition-all group/link text-xs ${isViewed ? 'bg-blue-900/10 border-blue-500/20 text-blue-300' : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/12 text-gray-400 hover:text-white'}`}>
                           {res.type === 'YOUTUBE' && <Video size={12} className="text-red-500 shrink-0" />}
                           {res.type === 'GITHUB' && <Code size={12} className="text-purple-500 shrink-0" />}
                           {res.type === 'INTERACTIVE' && <Play size={12} className="text-green-500 shrink-0" />}
@@ -762,12 +791,17 @@ export default function Dashboard() {
   const [inputFocused, setInputFocused] = useState(false);
   const [expandedRoadmaps, setExpandedRoadmaps] = useState<Set<string>>(new Set());
 
-  // ── NEW: Test modal state ──
   const [testMilestone, setTestMilestone] = useState<any | null>(null);
-
-  // ── NEW: XP gate state ──
   const [showXpGate, setShowXpGate] = useState(false);
   const [xpGateError, setXpGateError] = useState('');
+  const [testRetryGate, setTestRetryGate] = useState<{ milestone: any } | null>(null);
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [retryError, setRetryError] = useState('');
+
+  // ── LOCAL TEST RESULTS CACHE ───────────────────────────────────────────────
+  // Keyed by milestoneId. Populated immediately after submit so the UI
+  // reflects the correct gate/score even before loadRoadmaps resolves.
+  const [localTestResults, setLocalTestResults] = useState<Record<string, TestResult>>({});
 
   const user = useAppSelector((s) => s.user.user);
   const { roadmaps, goal, loading } = useAppSelector((s) => s.roadmap);
@@ -805,7 +839,6 @@ export default function Dashboard() {
     });
   };
 
-  // ── PROGRESS ACTIONS ──
   const handleProgressAction = async (action: string, data: any) => {
     if (!user) return;
     try {
@@ -815,57 +848,37 @@ export default function Dashboard() {
     } catch (e) { console.error('Progress update failed', e); }
   };
 
-  // ── XP GATE: check if mission requires XP ──
   const isMissionFree = roadmaps.length === 0;
   const canAffordMission = (userProgress?.stats?.totalXP ?? 0) >= MISSION_XP_COST;
+  const canAffordRetry = (userProgress?.stats?.totalXP ?? 0) >= TEST_RETRY_XP_COST;
 
-  // ── GENERATE ROADMAP WITH XP GATE ──
   const handleGenerate = async () => {
     if (!goal.trim() || !user) return;
-
-    // First mission is always free
     if (!isMissionFree && !canAffordMission) {
       setXpGateError(`You need ${MISSION_XP_COST} XP to start a new mission. Earn more XP by completing milestones, quizzes, and daily goals!`);
       setShowXpGate(true);
       return;
     }
-
-    // Confirm XP spend (not for first mission)
-    if (!isMissionFree) {
-      setShowXpGate(true);
-      setXpGateError('');
-      return;
-    }
-
+    if (!isMissionFree) { setShowXpGate(true); setXpGateError(''); return; }
     await executeGenerate();
   };
 
   const executeGenerate = async () => {
     setShowXpGate(false);
     if (!goal.trim() || !user) return;
-
     try {
-      // Deduct XP for non-first missions
       if (!isMissionFree) {
         const deductResult = await fetch('/api/progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: MISSION_XP_COST } }),
         });
         const deductData = await deductResult.json();
-        if (!deductData.success) {
-          alert(deductData.error || 'Failed to deduct XP');
-          return;
-        }
-        // Refresh progress to reflect new XP
+        if (!deductData.success) { alert(deductData.error || 'Failed to deduct XP'); return; }
         dispatch(loadUserProgress(user.id));
       }
-
       const result = await dispatch(generateRoadmap({ goal, userId: user.id })).unwrap();
       if (result?.id) setExpandedRoadmaps((prev) => new Set([...prev, result.id]));
-    } catch {
-      alert('Failed to generate roadmap. Please try again.');
-    }
+    } catch { alert('Failed to generate roadmap. Please try again.'); }
   };
 
   const startMilestone = async (milestone: any) => {
@@ -883,32 +896,99 @@ export default function Dashboard() {
     await handleProgressAction('mark_resource_viewed', { milestoneId: milestone.id, resourceId });
   };
 
-  // ── NEW: Test handlers ──
-  const handleOpenTest = (milestone: any) => setTestMilestone(milestone);
-  const handleCloseTest = () => setTestMilestone(null);
+  // ── TEST HANDLERS ──────────────────────────────────────────────────────────
 
+  const handleOpenTest = (milestone: any) => {
+    // Check local cache FIRST — this is populated immediately after submit
+    // so it works even before loadRoadmaps has refreshed Redux state.
+    const localResult = localTestResults[milestone.id];
+    const reduxResult: TestResult | undefined = milestone.progress?.testResult;
+    const testResult = localResult ?? reduxResult;
+
+    if (testResult) {
+      const isPassed = PASSING_GRADES.has(testResult.grade);
+      if (isPassed) return; // Locked — button is a <span>, this shouldn't fire
+      // Failed — show retry gate
+      setRetryError('');
+      setTestRetryGate({ milestone });
+      return;
+    }
+
+    // No prior result — first attempt, free
+    setTestMilestone(milestone);
+  };
+
+  const handleCloseTest = () => {
+    setTestMilestone(null);
+    // Refresh so Redux catches up to what localTestResults already knows
+    if (user) {
+      dispatch(loadRoadmaps(user.id));
+      dispatch(loadUserProgress(user.id));
+    }
+  };
+
+  const handleRetryConfirm = async () => {
+    if (!user || !testRetryGate) return;
+    if (!canAffordRetry) {
+      setRetryError(`You need ${TEST_RETRY_XP_COST} XP to retry. You have ${userProgress?.stats?.totalXP ?? 0} XP.`);
+      return;
+    }
+    setRetryLoading(true);
+    setRetryError('');
+    try {
+      const res = await fetch('/api/progress', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: TEST_RETRY_XP_COST } }),
+      });
+      const data = await res.json();
+      if (!data.success) { setRetryError(data.error || 'Failed to deduct XP. Please try again.'); setRetryLoading(false); return; }
+      dispatch(loadUserProgress(user.id));
+      setTestRetryGate(null);
+      setTestMilestone(testRetryGate.milestone);
+    } catch { setRetryError('Something went wrong. Please try again.'); }
+    finally { setRetryLoading(false); }
+  };
+
+  // Called by TestModal as soon as the last question is answered (before results screen).
   const handleTestComplete = async (score: number, total: number, answers: any[]) => {
     if (!user || !testMilestone) return;
     try {
-      await fetch('/api/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch('/api/progress', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submit_test',
           userId: user.id,
-          data: {
-            milestoneId: testMilestone.id,
-            milestoneTitle: testMilestone.title,
-            score,
-            total,
-            answers,
-          },
+          data: { milestoneId: testMilestone.id, milestoneTitle: testMilestone.title, score, total, answers },
         }),
       });
-      dispatch(loadUserProgress(user.id));
-    } catch (e) {
-      console.error('Test submit failed', e);
-    }
+      const data = await res.json();
+
+      if (res.status === 403) {
+        // Already passed — backend blocked it, silently ignore
+        console.warn('submit_test blocked: milestone already passed');
+        return;
+      }
+
+      if (data.success) {
+        // ── Immediately cache the result locally so the gate fires correctly
+        // before loadRoadmaps has a chance to refresh Redux state.
+        const prevAttempts = (localTestResults[testMilestone.id]?.attempts ?? testMilestone.progress?.testResult?.attempts ?? 0);
+        const newResult: TestResult = {
+          grade: data.grade,
+          score: data.score,
+          total: data.total,
+          attempts: data.attempts ?? prevAttempts + 1,
+          passed: data.passed,
+          xpEarned: data.xpEarned,
+          lastAttemptAt: new Date().toISOString(),
+        };
+        setLocalTestResults((prev) => ({ ...prev, [testMilestone.id]: newResult }));
+
+        // Refresh both slices so XP bar and roadmap are up to date
+        dispatch(loadUserProgress(user.id));
+        dispatch(loadRoadmaps(user.id));
+      }
+    } catch (e) { console.error('Test submit failed', e); }
   };
 
   const handleAskMentor = async (mode: 'chat' | 'explain' | 'quiz', milestoneOverride?: any, text?: string) => {
@@ -930,8 +1010,7 @@ export default function Dashboard() {
     const historyForAPI = [...chatHistory, newUserMessage].map((msg) => ({ role: msg.role, text: msg.text || '' }));
     try {
       const response = await fetch('/api/mentor-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg || `Generate a ${mode} for this topic`, context: `${targetMilestone.title}: ${targetMilestone.description}`, mode, chatHistory: historyForAPI }),
       });
       if (!response.body) throw new Error('No response stream');
@@ -1026,7 +1105,6 @@ export default function Dashboard() {
             {userProgress && <StatsBar progress={userProgress} onShowAchievements={() => dispatch(setShowAchievements(true))} />}
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* LEFT — MISSION INPUT */}
               <div className="lg:col-span-4">
                 <div className={`bg-[#0a0a0a] border rounded-3xl p-6 sticky top-24 transition-all duration-300 ${inputFocused ? 'border-blue-500/50 shadow-xl shadow-blue-500/10' : 'border-white/8 hover:border-white/15'}`}>
                   <h2 className="text-xl font-black mb-1 flex items-center gap-2">
@@ -1037,18 +1115,10 @@ export default function Dashboard() {
                     What do you want to master?{' '}
                     <span className="text-blue-400 font-medium">Try: "React in 3 days" or "Learn DevOps"</span>
                   </p>
-
-                  {/* ── XP COST BADGE ── */}
                   {!isMissionFree && (
-                    <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border mb-3 ${
-                      canAffordMission
-                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                        : 'bg-red-500/10 border-red-500/20 text-red-400'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border mb-3 ${canAffordMission ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
                       <Zap size={10} />
-                      {canAffordMission
-                        ? `Costs ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`
-                        : `Need ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`}
+                      {canAffordMission ? `Costs ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP` : `Need ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`}
                     </div>
                   )}
                   {isMissionFree && (
@@ -1056,7 +1126,6 @@ export default function Dashboard() {
                       <Sparkles size={10} />First mission is FREE!
                     </div>
                   )}
-
                   <textarea
                     className="w-full bg-white/4 border border-white/8 rounded-2xl p-4 text-white text-sm min-h-[120px] focus:outline-none focus:border-blue-500/60 focus:bg-blue-500/3 mb-4 transition-all resize-none placeholder:text-gray-600"
                     placeholder="e.g., Master System Design in 30 days..."
@@ -1066,26 +1135,14 @@ export default function Dashboard() {
                     onBlur={() => setInputFocused(false)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleGenerate(); }}
                   />
-
                   <button
                     onClick={handleGenerate}
                     disabled={loading || !goal.trim() || (!isMissionFree && !canAffordMission)}
-                    className={`w-full relative overflow-hidden font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed group text-sm ${
-                      !isMissionFree && !canAffordMission
-                        ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                        : 'bg-white text-black hover:bg-blue-500 hover:text-white'
-                    }`}
+                    className={`w-full relative overflow-hidden font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed group text-sm ${!isMissionFree && !canAffordMission ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white text-black hover:bg-blue-500 hover:text-white'}`}
                   >
                     <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {loading ? (
-                      <><Loader2 className="animate-spin" size={16} />Crafting Your Path…</>
-                    ) : !isMissionFree && !canAffordMission ? (
-                      <><Lock size={16} />Not Enough XP</>
-                    ) : (
-                      <><Sparkles size={16} />Generate Roadmap{!isMissionFree && <span className="text-[10px] opacity-60 ml-1">({MISSION_XP_COST} XP)</span>}</>
-                    )}
+                    {loading ? <><Loader2 className="animate-spin" size={16} />Crafting Your Path…</> : !isMissionFree && !canAffordMission ? <><Lock size={16} />Not Enough XP</> : <><Sparkles size={16} />Generate Roadmap{!isMissionFree && <span className="text-[10px] opacity-60 ml-1">({MISSION_XP_COST} XP)</span>}</>}
                   </button>
-
                   <div className="mt-4 space-y-1.5">
                     {['React in 3 days', 'Kubernetes mastery', 'DSA for interviews'].map((tip) => (
                       <button key={tip} onClick={() => dispatch(setGoal(tip))} className="w-full text-left text-[11px] text-gray-600 hover:text-blue-400 px-3 py-1.5 rounded-lg bg-white/2 hover:bg-blue-500/5 border border-white/4 hover:border-blue-500/20 transition-all">↳ {tip}</button>
@@ -1094,7 +1151,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* RIGHT — ROADMAPS */}
               <div className="lg:col-span-8 space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar pb-16">
                 {roadmaps.length === 0 ? (
                   <div className="flex flex-col items-center justify-center text-center py-24 text-gray-700">
@@ -1118,6 +1174,7 @@ export default function Dashboard() {
                         onAskMentor={handleAskMentor}
                         onOpenTest={handleOpenTest}
                         isDailyCourse={isDailyCourse}
+                        localTestResults={localTestResults}
                       />
                     );
                   })
@@ -1127,7 +1184,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── NEURAL MENTOR SIDEBAR ── */}
+        {/* NEURAL MENTOR SIDEBAR */}
         <div className={`fixed inset-y-0 right-0 w-full sm:w-[440px] xl:w-[500px] bg-[#0a0a0a] border-l border-white/8 transform transition-transform duration-300 ease-in-out shadow-2xl z-40 flex flex-col top-16 ${activeMilestone ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="px-5 py-4 border-b border-white/8 flex justify-between items-center bg-gradient-to-r from-blue-600/8 to-purple-600/5 shrink-0">
             <div className="min-w-0">
@@ -1170,30 +1227,27 @@ export default function Dashboard() {
                     <InteractiveQuiz quiz={msg.quiz} userAnswer={msg.userAnswer} onAnswer={(answerIndex) => handleQuizAnswer(idx, answerIndex)} />
                   ) : msg.text ? (
                     msg.role === 'ai' ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          h1: ({ children }) => <h1 className="text-base font-black text-white mb-2 pb-1 border-b border-white/10">{children}</h1>,
-                          h2: ({ children }) => <h2 className="text-sm font-black text-white mb-2 mt-4">{children}</h2>,
-                          h3: ({ children }) => <h3 className="text-xs font-black text-blue-400 mb-1 mt-3 uppercase tracking-wide">{children}</h3>,
-                          ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal pl-4 mb-3 space-y-1">{children}</ol>,
-                          li: ({ children }) => <li className="pl-1">{children}</li>,
-                          p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="text-white font-bold">{children}</strong>,
-                          code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                              <div className="rounded-xl overflow-hidden my-3 border border-white/8 shadow-xl">
-                                <div className="bg-[#1a1a1a] px-3 py-1.5 text-[9px] text-gray-500 border-b border-white/5 font-mono"><span>{match[1].toUpperCase()}</span></div>
-                                <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" customStyle={{ margin: 0, padding: '0.875rem', background: '#0d0d0d', fontSize: '11px', lineHeight: '1.5' }} {...props}>
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              </div>
-                            ) : <code className="bg-blue-500/10 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs border border-blue-500/15" {...props}>{children}</code>;
-                          },
-                        }}
-                      >
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                        h1: ({ children }) => <h1 className="text-base font-black text-white mb-2 pb-1 border-b border-white/10">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-sm font-black text-white mb-2 mt-4">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-xs font-black text-blue-400 mb-1 mt-3 uppercase tracking-wide">{children}</h3>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-3 space-y-1">{children}</ol>,
+                        li: ({ children }) => <li className="pl-1">{children}</li>,
+                        p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="text-white font-bold">{children}</strong>,
+                        code({ node, inline, className, children, ...props }: any) {
+                          const match = /language-(\w+)/.exec(className || '');
+                          return !inline && match ? (
+                            <div className="rounded-xl overflow-hidden my-3 border border-white/8 shadow-xl">
+                              <div className="bg-[#1a1a1a] px-3 py-1.5 text-[9px] text-gray-500 border-b border-white/5 font-mono"><span>{match[1].toUpperCase()}</span></div>
+                              <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" customStyle={{ margin: 0, padding: '0.875rem', background: '#0d0d0d', fontSize: '11px', lineHeight: '1.5' }} {...props}>
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            </div>
+                          ) : <code className="bg-blue-500/10 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs border border-blue-500/15" {...props}>{children}</code>;
+                        },
+                      }}>
                         {msg.text}
                       </ReactMarkdown>
                     ) : msg.text
@@ -1242,7 +1296,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── ACHIEVEMENTS MODAL ── */}
+      {/* ACHIEVEMENTS MODAL */}
       {showAchievements && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-white/8 rounded-3xl max-w-xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
@@ -1257,30 +1311,25 @@ export default function Dashboard() {
                   <p className="font-bold">No badges yet.</p>
                   <p className="text-xs mt-1">Complete milestones to earn badges!</p>
                 </div>
-              ) : (
-                userProgress?.achievements?.map((badge, i) => (
-                  <div key={i} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex flex-col items-center text-center gap-2 hover:border-yellow-500/20 transition-all">
-                    <div className="text-3xl mb-1">{badge.badgeIcon}</div>
-                    <h3 className="font-black text-white text-xs">{badge.badgeName}</h3>
-                    <p className="text-[10px] text-gray-600 leading-relaxed">{badge.description}</p>
-                  </div>
-                ))
-              )}
+              ) : userProgress?.achievements?.map((badge, i) => (
+                <div key={i} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex flex-col items-center text-center gap-2 hover:border-yellow-500/20 transition-all">
+                  <div className="text-3xl mb-1">{badge.badgeIcon}</div>
+                  <h3 className="font-black text-white text-xs">{badge.badgeName}</h3>
+                  <p className="text-[10px] text-gray-600 leading-relaxed">{badge.description}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── XP GATE MODAL ── */}
+      {/* MISSION XP GATE MODAL */}
       {showXpGate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl max-w-sm w-full shadow-2xl p-6">
             {xpGateError ? (
-              // Insufficient XP
               <>
-                <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Lock size={24} className="text-red-400" />
-                </div>
+                <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4"><Lock size={24} className="text-red-400" /></div>
                 <h3 className="font-black text-white text-center text-lg mb-2">Not Enough XP</h3>
                 <p className="text-gray-500 text-xs text-center leading-relaxed mb-5">{xpGateError}</p>
                 <div className="bg-red-500/8 border border-red-500/20 rounded-2xl p-3 mb-5 flex items-center gap-3">
@@ -1293,20 +1342,14 @@ export default function Dashboard() {
                 <button onClick={() => setShowXpGate(false)} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3 rounded-2xl transition-all text-sm">Got it</button>
               </>
             ) : (
-              // Confirm spend
               <>
-                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Zap size={24} className="text-blue-400" />
-                </div>
+                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4"><Zap size={24} className="text-blue-400" /></div>
                 <h3 className="font-black text-white text-center text-lg mb-2">Start New Mission?</h3>
                 <p className="text-gray-500 text-xs text-center leading-relaxed mb-5">
                   Launching a new learning mission costs <span className="text-blue-400 font-bold">{MISSION_XP_COST} XP</span>. Your roadmap will be generated instantly.
                 </p>
                 <div className="bg-blue-500/8 border border-blue-500/20 rounded-2xl p-3 mb-5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Zap size={14} className="text-blue-400" />
-                    <span className="text-xs text-gray-400">Your balance</span>
-                  </div>
+                  <div className="flex items-center gap-2"><Zap size={14} className="text-blue-400" /><span className="text-xs text-gray-400">Your balance</span></div>
                   <div className="flex items-center gap-3 text-xs font-bold">
                     <span className="text-white">{userProgress?.stats?.totalXP ?? 0} XP</span>
                     <span className="text-gray-600">→</span>
@@ -1325,7 +1368,74 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── TEST MODAL ── */}
+      {/* TEST RETRY GATE MODAL */}
+      {testRetryGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl max-w-sm w-full shadow-2xl p-6">
+            {(() => {
+              const prev: TestResult = localTestResults[testRetryGate.milestone.id] ?? testRetryGate.milestone.progress?.testResult;
+              const cfg = GRADE_CONFIG[prev?.grade ?? 'F'];
+              return (
+                <>
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${cfg.bg} ${cfg.border}`}>
+                    <span className={`text-2xl font-black ${cfg.color}`}>{prev?.grade ?? 'F'}</span>
+                  </div>
+                  <h3 className="font-black text-white text-center text-lg mb-1">Retry This Test?</h3>
+                  <p className="text-gray-500 text-xs text-center mb-1">
+                    You scored <span className={`font-bold ${cfg.color}`}>{prev?.score ?? 0}/{prev?.total ?? 5}</span> on your last attempt.
+                  </p>
+                  <p className="text-gray-600 text-[11px] text-center mb-5">
+                    Grade B or above required to pass. Retrying costs <span className="text-orange-400 font-bold">{TEST_RETRY_XP_COST} XP</span>.
+                  </p>
+                </>
+              );
+            })()}
+
+            <div className={`rounded-2xl p-3 mb-4 flex items-center justify-between border ${canAffordRetry ? 'bg-orange-500/8 border-orange-500/20' : 'bg-red-500/8 border-red-500/20'}`}>
+              <div className="flex items-center gap-2">
+                <Zap size={14} className={canAffordRetry ? 'text-orange-400' : 'text-red-400'} />
+                <span className="text-xs text-gray-400">Your balance</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-bold">
+                <span className="text-white">{userProgress?.stats?.totalXP ?? 0} XP</span>
+                {canAffordRetry && <><span className="text-gray-600">→</span><span className="text-orange-400">{(userProgress?.stats?.totalXP ?? 0) - TEST_RETRY_XP_COST} XP</span></>}
+              </div>
+            </div>
+
+            {(() => {
+              const prev: TestResult = localTestResults[testRetryGate.milestone.id] ?? testRetryGate.milestone.progress?.testResult;
+              return prev?.attempts > 1 ? (
+                <div className="flex items-center gap-2 text-[10px] text-gray-600 mb-4 bg-white/3 rounded-xl p-2.5 border border-white/5">
+                  <AlertCircle size={11} className="text-gray-600 shrink-0" />
+                  This will be attempt #{(prev.attempts ?? 0) + 1}. Each retry costs {TEST_RETRY_XP_COST} XP.
+                </div>
+              ) : null;
+            })()}
+
+            {retryError && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4 text-xs text-red-300 flex items-center gap-2">
+                <AlertCircle size={13} className="shrink-0" />{retryError}
+              </div>
+            )}
+
+            {!canAffordRetry ? (
+              <>
+                <p className="text-xs text-red-400 text-center mb-4">You need {TEST_RETRY_XP_COST} XP to retry. Earn XP by completing milestones and quizzes.</p>
+                <button onClick={() => { setTestRetryGate(null); setRetryError(''); }} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3 rounded-2xl transition-all text-sm">Got it</button>
+              </>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => { setTestRetryGate(null); setRetryError(''); }} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3 rounded-2xl transition-all text-sm">Cancel</button>
+                <button onClick={handleRetryConfirm} disabled={retryLoading} className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-2xl transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                  {retryLoading ? <Loader2 size={14} className="animate-spin" /> : <><RefreshCw size={14} />Retry ({TEST_RETRY_XP_COST} XP)</>}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TEST MODAL */}
       {testMilestone && (
         <TestModal
           milestone={testMilestone}
