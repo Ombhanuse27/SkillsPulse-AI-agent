@@ -12,7 +12,7 @@ import {
   Sparkles, GraduationCap, MessageSquare, X, Send, ChevronRight,
   BookOpen, Zap, Brain, Trophy, Flame, Target, Lock, Clock, Award,
   FileText, Menu, Home, ChevronDown, Cpu, ClipboardList, RefreshCw,
-  AlertCircle, Star,
+  AlertCircle, Star, ChevronLeft,
 } from 'lucide-react';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -70,10 +70,10 @@ interface UserProgress {
 }
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',        href: '/dashboard',        icon: Home,     color: 'text-blue-400',   },
-  { label: 'Career Architect', href: '/dashboard',        icon: Map,      color: 'text-green-400',  },
-  { label: 'Resume Audit',     href: '/resume-analyzer',  icon: FileText, color: 'text-sky-400',    },
-  { label: 'AI Interviewer',   href: '/interview-prep',   icon: Brain,    color: 'text-purple-400', },
+  { label: 'Dashboard',        href: '/dashboard',        icon: Home,     color: 'text-blue-400',   bg: 'bg-blue-500/10'   },
+  { label: 'Career Architect', href: '/dashboard',        icon: Map,      color: 'text-green-400',  bg: 'bg-green-500/10'  },
+  { label: 'Resume Audit',     href: '/resume-analyzer',  icon: FileText, color: 'text-sky-400',    bg: 'bg-sky-500/10'    },
+  { label: 'AI Interviewer',   href: '/interview-prep',   icon: Brain,    color: 'text-purple-400', bg: 'bg-purple-500/10' },
 ];
 
 const MISSION_XP_COST = 100;
@@ -106,81 +106,191 @@ function getTestXP(score: number, total: number): number {
   return 10;
 }
 
-// ─── NAVBAR ───────────────────────────────────────────────────────────────────
+// ─── VERTICAL SIDEBAR NAVBAR ──────────────────────────────────────────────────
 function Navbar({ user, onLogout, progress }: { user: any; onLogout: () => void; progress?: UserProgress; }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  const [collapsed, setCollapsed] = useState(false);
+  const xpPercentage = progress?.stats
+    ? ((progress.stats.nextLevelXP - progress.stats.xpToNextLevel) / progress.stats.nextLevelXP) * 100
+    : 0;
+
   return (
     <>
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#050505]/95 backdrop-blur-xl border-b border-white/10 shadow-xl' : 'bg-transparent'}`}>
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2.5 font-black text-xl tracking-tighter group shrink-0">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/60 transition-shadow">
-              <Cpu size={16} className="text-white" />
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-4 left-4 z-50 md:hidden w-10 h-10 bg-[#0d0d0d] border border-white/10 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all shadow-lg"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 bottom-0 z-50 flex flex-col bg-[#080808] border-r border-white/8 transition-all duration-300 ease-in-out
+          ${mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+          ${collapsed ? 'md:w-[68px]' : 'md:w-64'}
+        `}
+      >
+        {/* Logo */}
+        <div className={`flex items-center border-b border-white/8 shrink-0 h-16 transition-all duration-300 ${collapsed ? 'px-3 justify-center' : 'px-5 justify-between'}`}>
+          <Link href="/" className="flex items-center gap-2.5 font-black text-xl tracking-tighter group min-w-0">
+            <div className="w-9 h-9 shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-shadow">
+              <Cpu size={17} className="text-white" />
             </div>
-            <span className="hidden sm:inline">Skill<span className="text-blue-500">Pulse</span></span>
+            {!collapsed && (
+              <span className="truncate">Skill<span className="text-blue-500">Pulse</span></span>
+            )}
           </Link>
-          <div className="hidden md:flex items-center gap-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isCurrent = typeof window !== 'undefined' && window.location.pathname === item.href && item.href === '/dashboard';
-              return (
-                <Link key={item.label} href={item.href} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${isCurrent ? `bg-white/10 ${item.color}` : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="hidden md:flex w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 items-center justify-center text-gray-600 hover:text-white transition-all shrink-0"
+            >
+              <ChevronLeft size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Collapse expand btn when collapsed */}
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="hidden md:flex mx-auto mt-2 w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 items-center justify-center text-gray-600 hover:text-white transition-all"
+          >
+            <ChevronRight size={14} />
+          </button>
+        )}
+
+        {/* Nav label */}
+        {!collapsed && (
+          <p className="px-5 pt-5 pb-2 text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">Menu</p>
+        )}
+
+        {/* Nav Items */}
+        <nav className={`flex-1 space-y-1 overflow-y-auto ${collapsed ? 'px-2 pt-3' : 'px-3'}`}>
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isCurrent = typeof window !== 'undefined' && window.location.pathname === item.href && item.label === 'Dashboard';
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.label : undefined}
+                className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 group relative
+                  ${collapsed ? 'p-2.5 justify-center' : 'px-3 py-2.5'}
+                  ${isCurrent
+                    ? `${item.bg} ${item.color} border border-white/10`
+                    : 'text-gray-400 hover:text-white hover:bg-white/6 border border-transparent'
+                  }`}
+              >
+                <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                  ${isCurrent ? `${item.bg}` : 'bg-white/4 group-hover:bg-white/10'}
+                  ${item.color}`}
+                >
                   <Icon size={15} />
-                  {item.label}
-                </Link>
-              );
-            })}
+                </div>
+                {!collapsed && <span className="truncate">{item.label}</span>}
+                {/* Tooltip when collapsed */}
+                {collapsed && (
+                  <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-[#1a1a1a] border border-white/10 rounded-lg text-xs text-white font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                    {item.label}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Stats */}
+        {progress?.stats && !collapsed && (
+          <div className="px-3 py-3 mx-3 mb-3 bg-[#0e0e0e] border border-white/6 rounded-2xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-600">Level {progress.stats.level}</p>
+                <p className="text-sm font-black text-white tabular-nums">
+                  {progress.stats.totalXP.toLocaleString()}
+                  <span className="text-blue-400 text-[11px] ml-1">XP</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {progress.stats.currentStreak > 0 && (
+                  <div className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 rounded-full px-2 py-1 text-[10px] font-bold text-orange-400">
+                    <Flame size={10} />{progress.stats.currentStreak}d
+                  </div>
+                )}
+                <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                  <Zap size={14} className="text-blue-400 animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-1000"
+                style={{ width: `${xpPercentage}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-600">{progress.stats.xpToNextLevel} XP to Level {progress.stats.level + 1}</p>
           </div>
-          <div className="flex items-center gap-3">
-            {progress?.stats && (
-              <div className="hidden lg:flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1.5 text-xs font-bold text-blue-400">
-                <Zap size={12} className="animate-pulse" />
-                {progress.stats.totalXP.toLocaleString()} XP
+        )}
+
+        {/* Collapsed stats */}
+        {progress?.stats && collapsed && (
+          <div className="flex flex-col items-center gap-2 pb-3 px-2">
+            <div title={`${progress.stats.totalXP.toLocaleString()} XP`} className="w-10 h-10 bg-blue-500/10 rounded-xl flex flex-col items-center justify-center border border-blue-500/15">
+              <Zap size={13} className="text-blue-400" />
+            </div>
+            {progress.stats.currentStreak > 0 && (
+              <div title={`${progress.stats.currentStreak} day streak`} className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center border border-orange-500/15">
+                <Flame size={13} className="text-orange-400" />
               </div>
             )}
-            {progress?.stats?.currentStreak ? (
-              <div className="hidden sm:flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1.5 text-xs font-bold text-orange-400">
-                <Flame size={12} />
-                {progress.stats.currentStreak}d
-              </div>
-            ) : null}
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-lg cursor-pointer">
-              {user?.email?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <button onClick={onLogout} className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-2 py-1.5 rounded-lg hover:bg-white/5">
-              <LogOut size={14} />
-              <span className="hidden lg:inline">Sign Out</span>
-            </button>
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors text-gray-400">
-              <Menu size={18} />
-            </button>
           </div>
-        </div>
-        <div className={`md:hidden overflow-hidden transition-all duration-300 border-t border-white/5 bg-[#0a0a0a]/95 backdrop-blur-xl ${mobileOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 py-3 space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.label} href={item.href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all ${item.color}`}>
-                  <Icon size={16} />{item.label}
-                </Link>
-              );
-            })}
-            <div className="pt-2 border-t border-white/5">
-              <button onClick={onLogout} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-white hover:bg-white/5 transition-all">
-                <LogOut size={16} />Sign Out
+        )}
+
+        {/* User + Sign Out */}
+        <div className={`border-t border-white/8 shrink-0 ${collapsed ? 'p-2' : 'p-4'}`}>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <button
+                onClick={onLogout}
+                title="Sign Out"
+                className="w-9 h-9 rounded-xl bg-white/4 hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition-all"
+              >
+                <LogOut size={14} />
               </button>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-lg shrink-0">
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white truncate">{user?.email?.split('@')[0]}</p>
+                <p className="text-[10px] text-gray-600 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={onLogout}
+                className="w-8 h-8 rounded-xl bg-white/4 hover:bg-red-500/15 flex items-center justify-center text-gray-500 hover:text-red-400 transition-all shrink-0"
+                title="Sign Out"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
         </div>
-      </nav>
-      <div className="h-16" />
+      </aside>
     </>
   );
 }
@@ -250,30 +360,6 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress; on
   );
 }
 
-function AgentCards() {
-  const agents = [
-    { href: '/resume-analyzer', icon: FileText, label: 'Resume Audit', sub: 'Upload & optimize', from: 'from-sky-500/10', border: 'hover:border-sky-500/40', text: 'text-sky-400', glow: 'shadow-sky-500/20' },
-    { href: '/interview-prep', icon: Brain, label: 'AI Interviewer', sub: 'Mock interviews', from: 'from-purple-500/10', border: 'hover:border-purple-500/40', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
-  ];
-  return (
-    <div className="flex gap-3 mb-8 flex-wrap">
-      {agents.map((a) => {
-        const Icon = a.icon;
-        return (
-          <Link key={a.href} href={a.href} className={`flex items-center gap-3 bg-[#0d0d0d] border border-white/8 ${a.border} rounded-2xl px-4 py-3 transition-all duration-300 group hover:shadow-lg ${a.glow}`}>
-            <div className={`w-8 h-8 bg-gradient-to-br ${a.from} to-transparent rounded-xl flex items-center justify-center ${a.text} group-hover:scale-110 transition-transform`}><Icon size={16} /></div>
-            <div>
-              <p className={`text-xs font-bold ${a.text}`}>{a.label}</p>
-              <p className="text-[10px] text-gray-600">{a.sub}</p>
-            </div>
-            <ChevronRight size={14} className="text-gray-600 group-hover:text-white group-hover:translate-x-0.5 transition-all ml-1" />
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
 function InteractiveQuiz({ quiz, userAnswer, onAnswer }: { quiz: QuizData; userAnswer?: number; onAnswer: (index: number) => void; }) {
   const answered = userAnswer !== undefined;
   return (
@@ -329,7 +415,6 @@ function StatusPill({ status }: { status: string }) {
   return null;
 }
 
-// ─── GRADE PILL — shows score + grade letter inline ───────────────────────────
 function GradePill({ testResult }: { testResult: TestResult }) {
   const cfg = GRADE_CONFIG[testResult.grade] ?? GRADE_CONFIG['F'];
   const isPassed = PASSING_GRADES.has(testResult.grade);
@@ -406,7 +491,6 @@ function TestModal({
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      // Build answers first, then call onComplete, then show results
       const answers = questions.map((q, i) => ({
         questionIndex: i,
         selectedIndex: selectedAnswers[i] ?? -1,
@@ -438,7 +522,6 @@ function TestModal({
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* LOADING */}
           {phase === 'loading' && (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/20">
@@ -449,7 +532,6 @@ function TestModal({
             </div>
           )}
 
-          {/* QUESTIONS */}
           {phase === 'questions' && questions.length > 0 && (
             <div className="p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -509,7 +591,6 @@ function TestModal({
             </div>
           )}
 
-          {/* Error state */}
           {phase === 'questions' && questions.length === 0 && error && (
             <div className="flex flex-col items-center justify-center py-20 gap-4 px-6 text-center">
               <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20"><X size={20} className="text-red-400" /></div>
@@ -518,7 +599,6 @@ function TestModal({
             </div>
           )}
 
-          {/* RESULTS */}
           {phase === 'results' && (
             <div className="p-6">
               <div className={`rounded-3xl border p-6 text-center mb-6 ${gradeConfig.bg} ${gradeConfig.border}`}>
@@ -571,7 +651,6 @@ function TestModal({
 }
 
 // ─── TEST BUTTON ──────────────────────────────────────────────────────────────
-// Reads testResult from milestone.progress OR from the localTestResults override map.
 function TestButton({
   milestone,
   localTestResults,
@@ -581,7 +660,6 @@ function TestButton({
   localTestResults: Record<string, TestResult>;
   onOpenTest: (m: any) => void;
 }) {
-  // Prefer locally-cached result (set immediately after test submit) over stale Redux data
   const testResult: TestResult | undefined =
     localTestResults[milestone.id] ?? milestone.progress?.testResult;
 
@@ -680,7 +758,6 @@ function RoadmapCard({
             const status = milestone.progress?.status || 'not_started';
             const isLocked = idx > 0 && map.milestones[idx - 1].progress?.status !== 'completed';
             const isLast = idx === map.milestones.length - 1;
-            // Prefer local result for display too
             const testResult: TestResult | undefined =
               localTestResults[milestone.id] ?? milestone.progress?.testResult;
 
@@ -797,10 +874,6 @@ export default function Dashboard() {
   const [testRetryGate, setTestRetryGate] = useState<{ milestone: any } | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
   const [retryError, setRetryError] = useState('');
-
-  // ── LOCAL TEST RESULTS CACHE ───────────────────────────────────────────────
-  // Keyed by milestoneId. Populated immediately after submit so the UI
-  // reflects the correct gate/score even before loadRoadmaps resolves.
   const [localTestResults, setLocalTestResults] = useState<Record<string, TestResult>>({});
 
   const user = useAppSelector((s) => s.user.user);
@@ -896,31 +969,23 @@ export default function Dashboard() {
     await handleProgressAction('mark_resource_viewed', { milestoneId: milestone.id, resourceId });
   };
 
-  // ── TEST HANDLERS ──────────────────────────────────────────────────────────
-
   const handleOpenTest = (milestone: any) => {
-    // Check local cache FIRST — this is populated immediately after submit
-    // so it works even before loadRoadmaps has refreshed Redux state.
     const localResult = localTestResults[milestone.id];
     const reduxResult: TestResult | undefined = milestone.progress?.testResult;
     const testResult = localResult ?? reduxResult;
 
     if (testResult) {
       const isPassed = PASSING_GRADES.has(testResult.grade);
-      if (isPassed) return; // Locked — button is a <span>, this shouldn't fire
-      // Failed — show retry gate
+      if (isPassed) return;
       setRetryError('');
       setTestRetryGate({ milestone });
       return;
     }
-
-    // No prior result — first attempt, free
     setTestMilestone(milestone);
   };
 
   const handleCloseTest = () => {
     setTestMilestone(null);
-    // Refresh so Redux catches up to what localTestResults already knows
     if (user) {
       dispatch(loadRoadmaps(user.id));
       dispatch(loadUserProgress(user.id));
@@ -949,7 +1014,6 @@ export default function Dashboard() {
     finally { setRetryLoading(false); }
   };
 
-  // Called by TestModal as soon as the last question is answered (before results screen).
   const handleTestComplete = async (score: number, total: number, answers: any[]) => {
     if (!user || !testMilestone) return;
     try {
@@ -964,14 +1028,11 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (res.status === 403) {
-        // Already passed — backend blocked it, silently ignore
         console.warn('submit_test blocked: milestone already passed');
         return;
       }
 
       if (data.success) {
-        // ── Immediately cache the result locally so the gate fires correctly
-        // before loadRoadmaps has a chance to refresh Redux state.
         const prevAttempts = (localTestResults[testMilestone.id]?.attempts ?? testMilestone.progress?.testResult?.attempts ?? 0);
         const newResult: TestResult = {
           grade: data.grade,
@@ -983,8 +1044,6 @@ export default function Dashboard() {
           lastAttemptAt: new Date().toISOString(),
         };
         setLocalTestResults((prev) => ({ ...prev, [testMilestone.id]: newResult }));
-
-        // Refresh both slices so XP bar and roadmap are up to date
         dispatch(loadUserProgress(user.id));
         dispatch(loadRoadmaps(user.id));
       }
@@ -1083,220 +1142,250 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden">
+      {/* Background glows */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-900/10 rounded-full blur-[150px]" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-900/8 rounded-full blur-[150px]" />
       </div>
 
-      <Navbar user={user} onLogout={handleLogout} progress={userProgress} />
+      {/* ── VERTICAL SIDEBAR NAVBAR ── */}
+      {/* Fix: pass `userProgress ?? undefined` so null doesn't cause TS error */}
+      <Navbar user={user} onLogout={handleLogout} progress={userProgress ?? undefined} />
 
-      <div className="relative z-10 flex min-h-[calc(100vh-64px)]">
-        <div className={`flex-1 transition-all duration-300 ease-in-out ${activeMilestone ? 'xl:mr-[500px]' : ''}`}>
-          <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6">
-            <div className="mb-6">
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight">Learning <span className="text-blue-500">Dashboard</span></h1>
-              <p className="text-gray-500 text-sm mt-1">
-                Welcome back, <span className="text-gray-300">{user?.email?.split('@')[0]}</span> —
-                {userProgress?.stats?.currentStreak ? ` you're on a ${userProgress.stats.currentStreak}-day streak! 🔥` : " let's build something great today."}
-              </p>
-            </div>
+      {/* ── MAIN AREA — offset for sidebar ── */}
+      <div className="md:ml-64 transition-all duration-300 relative z-10">
+        <div className="flex min-h-screen">
+          <div className={`flex-1 transition-all duration-300 ease-in-out ${activeMilestone ? 'xl:mr-[500px]' : ''}`}>
+            <div className="max-w-[1200px] mx-auto px-4 md:px-8 pt-16 md:pt-8 pb-8">
 
-            <AgentCards />
-            {userProgress && <StatsBar progress={userProgress} onShowAchievements={() => dispatch(setShowAchievements(true))} />}
+              {/* Header */}
+              <div className="mb-6">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+                  Learning <span className="text-blue-500">Dashboard</span>
+                </h1>
+                <p className="text-gray-500 text-sm mt-1">
+                  Welcome back, <span className="text-gray-300">{user?.email?.split('@')[0]}</span> —
+                  {userProgress?.stats?.currentStreak
+                    ? ` you're on a ${userProgress.stats.currentStreak}-day streak! 🔥`
+                    : " let's build something great today."}
+                </p>
+              </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-4">
-                <div className={`bg-[#0a0a0a] border rounded-3xl p-6 sticky top-24 transition-all duration-300 ${inputFocused ? 'border-blue-500/50 shadow-xl shadow-blue-500/10' : 'border-white/8 hover:border-white/15'}`}>
-                  <h2 className="text-xl font-black mb-1 flex items-center gap-2">
-                    <div className="w-7 h-7 bg-yellow-500/10 rounded-lg flex items-center justify-center"><Zap size={16} className="text-yellow-500" /></div>
-                    New Mission
-                  </h2>
-                  <p className="text-gray-500 text-xs mb-1 leading-relaxed">
-                    What do you want to master?{' '}
-                    <span className="text-blue-400 font-medium">Try: "React in 3 days" or "Learn DevOps"</span>
-                  </p>
-                  {!isMissionFree && (
-                    <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border mb-3 ${canAffordMission ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                      <Zap size={10} />
-                      {canAffordMission ? `Costs ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP` : `Need ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`}
+              {/* Stats bar */}
+              {userProgress && (
+                <StatsBar
+                  progress={userProgress}
+                  onShowAchievements={() => dispatch(setShowAchievements(true))}
+                />
+              )}
+
+              {/* Main grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* New Mission panel */}
+                <div className="lg:col-span-4">
+                  <div className={`bg-[#0a0a0a] border rounded-3xl p-6 sticky top-8 transition-all duration-300 ${inputFocused ? 'border-blue-500/50 shadow-xl shadow-blue-500/10' : 'border-white/8 hover:border-white/15'}`}>
+                    <h2 className="text-xl font-black mb-1 flex items-center gap-2">
+                      <div className="w-7 h-7 bg-yellow-500/10 rounded-lg flex items-center justify-center">
+                        <Zap size={16} className="text-yellow-500" />
+                      </div>
+                      New Mission
+                    </h2>
+                    <p className="text-gray-500 text-xs mb-1 leading-relaxed">
+                      What do you want to master?{' '}
+                      <span className="text-blue-400 font-medium">Try: "React in 3 days" or "Learn DevOps"</span>
+                    </p>
+                    {!isMissionFree && (
+                      <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border mb-3 ${canAffordMission ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        <Zap size={10} />
+                        {canAffordMission
+                          ? `Costs ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`
+                          : `Need ${MISSION_XP_COST} XP · You have ${userProgress?.stats?.totalXP ?? 0} XP`}
+                      </div>
+                    )}
+                    {isMissionFree && (
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border border-green-500/20 bg-green-500/8 text-green-400 mb-3">
+                        <Sparkles size={10} />First mission is FREE!
+                      </div>
+                    )}
+                    <textarea
+                      className="w-full bg-white/4 border border-white/8 rounded-2xl p-4 text-white text-sm min-h-[120px] focus:outline-none focus:border-blue-500/60 focus:bg-blue-500/3 mb-4 transition-all resize-none placeholder:text-gray-600"
+                      placeholder="e.g., Master System Design in 30 days..."
+                      value={goal}
+                      onChange={(e) => dispatch(setGoal(e.target.value))}
+                      onFocus={() => setInputFocused(true)}
+                      onBlur={() => setInputFocused(false)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleGenerate(); }}
+                    />
+                    <button
+                      onClick={handleGenerate}
+                      disabled={loading || !goal.trim() || (!isMissionFree && !canAffordMission)}
+                      className={`w-full relative overflow-hidden font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed group text-sm ${!isMissionFree && !canAffordMission ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white text-black hover:bg-blue-500 hover:text-white'}`}
+                    >
+                      <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {loading
+                        ? <><Loader2 className="animate-spin" size={16} />Crafting Your Path…</>
+                        : !isMissionFree && !canAffordMission
+                          ? <><Lock size={16} />Not Enough XP</>
+                          : <><Sparkles size={16} />Generate Roadmap{!isMissionFree && <span className="text-[10px] opacity-60 ml-1">({MISSION_XP_COST} XP)</span>}</>
+                      }
+                    </button>
+                    <div className="mt-4 space-y-1.5">
+                      {['React in 3 days', 'Kubernetes mastery', 'DSA for interviews'].map((tip) => (
+                        <button key={tip} onClick={() => dispatch(setGoal(tip))} className="w-full text-left text-[11px] text-gray-600 hover:text-blue-400 px-3 py-1.5 rounded-lg bg-white/2 hover:bg-blue-500/5 border border-white/4 hover:border-blue-500/20 transition-all">↳ {tip}</button>
+                      ))}
                     </div>
-                  )}
-                  {isMissionFree && (
-                    <div className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border border-green-500/20 bg-green-500/8 text-green-400 mb-3">
-                      <Sparkles size={10} />First mission is FREE!
+                  </div>
+                </div>
+
+                {/* Roadmaps */}
+                <div className="lg:col-span-8 space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto pr-1 custom-scrollbar pb-16">
+                  {roadmaps.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center text-center py-24 text-gray-700">
+                      <div className="w-16 h-16 rounded-3xl bg-white/3 border border-white/5 flex items-center justify-center mb-5"><BookOpen size={28} className="opacity-30" /></div>
+                      <p className="font-bold text-gray-500">No roadmaps yet.</p>
+                      <p className="text-sm text-gray-700 mt-1">Generate your first learning path on the left.</p>
                     </div>
+                  ) : (
+                    roadmaps.map((map) => {
+                      const isDailyCourse = map.title.toLowerCase().includes('day') || map.milestones.some((m: any) => m.title.toLowerCase().includes('day'));
+                      return (
+                        <RoadmapCard
+                          key={map.id}
+                          map={map}
+                          isExpanded={expandedRoadmaps.has(map.id)}
+                          onToggle={() => toggleRoadmap(map.id)}
+                          onMilestoneClick={(m) => dispatch(openMilestone(m))}
+                          onStartMilestone={startMilestone}
+                          onCompleteMilestone={completeMilestone}
+                          onTrackResource={trackResourceView}
+                          onAskMentor={handleAskMentor}
+                          onOpenTest={handleOpenTest}
+                          isDailyCourse={isDailyCourse}
+                          localTestResults={localTestResults}
+                        />
+                      );
+                    })
                   )}
-                  <textarea
-                    className="w-full bg-white/4 border border-white/8 rounded-2xl p-4 text-white text-sm min-h-[120px] focus:outline-none focus:border-blue-500/60 focus:bg-blue-500/3 mb-4 transition-all resize-none placeholder:text-gray-600"
-                    placeholder="e.g., Master System Design in 30 days..."
-                    value={goal}
-                    onChange={(e) => dispatch(setGoal(e.target.value))}
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleGenerate(); }}
-                  />
-                  <button
-                    onClick={handleGenerate}
-                    disabled={loading || !goal.trim() || (!isMissionFree && !canAffordMission)}
-                    className={`w-full relative overflow-hidden font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed group text-sm ${!isMissionFree && !canAffordMission ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white text-black hover:bg-blue-500 hover:text-white'}`}
-                  >
-                    <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {loading ? <><Loader2 className="animate-spin" size={16} />Crafting Your Path…</> : !isMissionFree && !canAffordMission ? <><Lock size={16} />Not Enough XP</> : <><Sparkles size={16} />Generate Roadmap{!isMissionFree && <span className="text-[10px] opacity-60 ml-1">({MISSION_XP_COST} XP)</span>}</>}
-                  </button>
-                  <div className="mt-4 space-y-1.5">
-                    {['React in 3 days', 'Kubernetes mastery', 'DSA for interviews'].map((tip) => (
-                      <button key={tip} onClick={() => dispatch(setGoal(tip))} className="w-full text-left text-[11px] text-gray-600 hover:text-blue-400 px-3 py-1.5 rounded-lg bg-white/2 hover:bg-blue-500/5 border border-white/4 hover:border-blue-500/20 transition-all">↳ {tip}</button>
-                    ))}
-                  </div>
                 </div>
-              </div>
-
-              <div className="lg:col-span-8 space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar pb-16">
-                {roadmaps.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center text-center py-24 text-gray-700">
-                    <div className="w-16 h-16 rounded-3xl bg-white/3 border border-white/5 flex items-center justify-center mb-5"><BookOpen size={28} className="opacity-30" /></div>
-                    <p className="font-bold text-gray-500">No roadmaps yet.</p>
-                    <p className="text-sm text-gray-700 mt-1">Generate your first learning path on the left.</p>
-                  </div>
-                ) : (
-                  roadmaps.map((map) => {
-                    const isDailyCourse = map.title.toLowerCase().includes('day') || map.milestones.some((m: any) => m.title.toLowerCase().includes('day'));
-                    return (
-                      <RoadmapCard
-                        key={map.id}
-                        map={map}
-                        isExpanded={expandedRoadmaps.has(map.id)}
-                        onToggle={() => toggleRoadmap(map.id)}
-                        onMilestoneClick={(m) => dispatch(openMilestone(m))}
-                        onStartMilestone={startMilestone}
-                        onCompleteMilestone={completeMilestone}
-                        onTrackResource={trackResourceView}
-                        onAskMentor={handleAskMentor}
-                        onOpenTest={handleOpenTest}
-                        isDailyCourse={isDailyCourse}
-                        localTestResults={localTestResults}
-                      />
-                    );
-                  })
-                )}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* NEURAL MENTOR SIDEBAR */}
-        <div className={`fixed inset-y-0 right-0 w-full sm:w-[440px] xl:w-[500px] bg-[#0a0a0a] border-l border-white/8 transform transition-transform duration-300 ease-in-out shadow-2xl z-40 flex flex-col top-16 ${activeMilestone ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="px-5 py-4 border-b border-white/8 flex justify-between items-center bg-gradient-to-r from-blue-600/8 to-purple-600/5 shrink-0">
-            <div className="min-w-0">
-              <h3 className="font-black text-white flex items-center gap-2 text-sm">
-                <div className="w-6 h-6 bg-blue-500/15 rounded-lg flex items-center justify-center"><Sparkles size={13} className="text-blue-400" /></div>
-                Neural Mentor
-              </h3>
-              <p className="text-[11px] text-gray-600 truncate mt-0.5 max-w-[280px]">{activeMilestone?.title}</p>
+          {/* ── NEURAL MENTOR SIDEBAR ── */}
+          {/* top-0 since there's no top navbar anymore */}
+          <div className={`fixed inset-y-0 right-0 w-full sm:w-[440px] xl:w-[500px] bg-[#0a0a0a] border-l border-white/8 transform transition-transform duration-300 ease-in-out shadow-2xl z-40 flex flex-col top-0 ${activeMilestone ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="px-5 py-4 border-b border-white/8 flex justify-between items-center bg-gradient-to-r from-blue-600/8 to-purple-600/5 shrink-0">
+              <div className="min-w-0">
+                <h3 className="font-black text-white flex items-center gap-2 text-sm">
+                  <div className="w-6 h-6 bg-blue-500/15 rounded-lg flex items-center justify-center"><Sparkles size={13} className="text-blue-400" /></div>
+                  Neural Mentor
+                </h3>
+                <p className="text-[11px] text-gray-600 truncate mt-0.5 max-w-[280px]">{activeMilestone?.title}</p>
+              </div>
+              <button onClick={() => dispatch(closeMentor())} className="w-8 h-8 rounded-xl bg-white/4 hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition-all"><X size={16} /></button>
             </div>
-            <button onClick={() => dispatch(closeMentor())} className="w-8 h-8 rounded-xl bg-white/4 hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition-all"><X size={16} /></button>
-          </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar" ref={chatScrollRef}>
-            {showWelcome && chatHistory.length === 0 && (
-              <div className="flex flex-col items-center justify-center text-center h-full min-h-[300px] space-y-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/10 rounded-3xl flex items-center justify-center border border-white/5"><Brain size={28} className="text-blue-400" /></div>
-                <div>
-                  <h4 className="font-black text-white text-base mb-2">Ready to Master This?</h4>
-                  <p className="text-gray-600 text-xs max-w-[220px] mx-auto leading-relaxed">I can explain concepts, quiz you, or answer questions about this milestone.</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
-                  <button onClick={() => handleAskMentor('explain')} className="bg-white/4 hover:bg-yellow-500/10 border border-white/8 hover:border-yellow-500/25 p-4 rounded-2xl transition-all text-xs flex flex-col items-center gap-2 group">
-                    <Sparkles size={20} className="text-yellow-400 group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-gray-300 group-hover:text-yellow-300 transition-colors">Explain</span>
-                    <span className="text-[10px] text-gray-600">Deep dive</span>
-                  </button>
-                  <button onClick={() => handleAskMentor('quiz')} className="bg-white/4 hover:bg-green-500/10 border border-white/8 hover:border-green-500/25 p-4 rounded-2xl transition-all text-xs flex flex-col items-center gap-2 group">
-                    <GraduationCap size={20} className="text-green-400 group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-gray-300 group-hover:text-green-300 transition-colors">Quiz Me</span>
-                    <span className="text-[10px] text-gray-600">+25 XP</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {chatHistory.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[95%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-[#141414] text-gray-300 border border-white/6 rounded-bl-sm'}`}>
-                  {msg.quiz ? (
-                    <InteractiveQuiz quiz={msg.quiz} userAnswer={msg.userAnswer} onAnswer={(answerIndex) => handleQuizAnswer(idx, answerIndex)} />
-                  ) : msg.text ? (
-                    msg.role === 'ai' ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                        h1: ({ children }) => <h1 className="text-base font-black text-white mb-2 pb-1 border-b border-white/10">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-sm font-black text-white mb-2 mt-4">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-xs font-black text-blue-400 mb-1 mt-3 uppercase tracking-wide">{children}</h3>,
-                        ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-3 space-y-1">{children}</ol>,
-                        li: ({ children }) => <li className="pl-1">{children}</li>,
-                        p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="text-white font-bold">{children}</strong>,
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          return !inline && match ? (
-                            <div className="rounded-xl overflow-hidden my-3 border border-white/8 shadow-xl">
-                              <div className="bg-[#1a1a1a] px-3 py-1.5 text-[9px] text-gray-500 border-b border-white/5 font-mono"><span>{match[1].toUpperCase()}</span></div>
-                              <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" customStyle={{ margin: 0, padding: '0.875rem', background: '#0d0d0d', fontSize: '11px', lineHeight: '1.5' }} {...props}>
-                                {String(children).replace(/\n$/, '')}
-                              </SyntaxHighlighter>
-                            </div>
-                          ) : <code className="bg-blue-500/10 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs border border-blue-500/15" {...props}>{children}</code>;
-                        },
-                      }}>
-                        {msg.text}
-                      </ReactMarkdown>
-                    ) : msg.text
-                  ) : null}
-                </div>
-              </div>
-            ))}
-
-            {isThinking && (
-              <div className="flex justify-start">
-                <div className="bg-[#141414] px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-3 border border-white/6">
-                  <Brain className="text-blue-400 animate-pulse" size={16} />
-                  <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar" ref={chatScrollRef}>
+              {showWelcome && chatHistory.length === 0 && (
+                <div className="flex flex-col items-center justify-center text-center h-full min-h-[300px] space-y-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/10 rounded-3xl flex items-center justify-center border border-white/5"><Brain size={28} className="text-blue-400" /></div>
+                  <div>
+                    <h4 className="font-black text-white text-base mb-2">Ready to Master This?</h4>
+                    <p className="text-gray-600 text-xs max-w-[220px] mx-auto leading-relaxed">I can explain concepts, quiz you, or answer questions about this milestone.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
+                    <button onClick={() => handleAskMentor('explain')} className="bg-white/4 hover:bg-yellow-500/10 border border-white/8 hover:border-yellow-500/25 p-4 rounded-2xl transition-all text-xs flex flex-col items-center gap-2 group">
+                      <Sparkles size={20} className="text-yellow-400 group-hover:scale-110 transition-transform" />
+                      <span className="font-bold text-gray-300 group-hover:text-yellow-300 transition-colors">Explain</span>
+                      <span className="text-[10px] text-gray-600">Deep dive</span>
+                    </button>
+                    <button onClick={() => handleAskMentor('quiz')} className="bg-white/4 hover:bg-green-500/10 border border-white/8 hover:border-green-500/25 p-4 rounded-2xl transition-all text-xs flex flex-col items-center gap-2 group">
+                      <GraduationCap size={20} className="text-green-400 group-hover:scale-110 transition-transform" />
+                      <span className="font-bold text-gray-300 group-hover:text-green-300 transition-colors">Quiz Me</span>
+                      <span className="text-[10px] text-gray-600">+25 XP</span>
+                    </button>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          <div className="p-4 border-t border-white/8 bg-[#080808] shrink-0">
-            {chatHistory.length > 0 && !isStreaming && (
-              <div className="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar">
-                {[{ label: '💡 Explain more', mode: 'explain' as const }, { label: '🎲 Quiz me', mode: 'quiz' as const }].map((pill) => (
-                  <button key={pill.label} onClick={() => handleAskMentor(pill.mode)} className="shrink-0 text-[11px] text-gray-500 hover:text-white bg-white/4 hover:bg-white/8 border border-white/6 hover:border-white/15 px-3 py-1.5 rounded-full transition-all">{pill.label}</button>
-                ))}
+              {chatHistory.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[95%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-[#141414] text-gray-300 border border-white/6 rounded-bl-sm'}`}>
+                    {msg.quiz ? (
+                      <InteractiveQuiz quiz={msg.quiz} userAnswer={msg.userAnswer} onAnswer={(answerIndex) => handleQuizAnswer(idx, answerIndex)} />
+                    ) : msg.text ? (
+                      msg.role === 'ai' ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                          h1: ({ children }) => <h1 className="text-base font-black text-white mb-2 pb-1 border-b border-white/10">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-black text-white mb-2 mt-4">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-xs font-black text-blue-400 mb-1 mt-3 uppercase tracking-wide">{children}</h3>,
+                          ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal pl-4 mb-3 space-y-1">{children}</ol>,
+                          li: ({ children }) => <li className="pl-1">{children}</li>,
+                          p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="text-white font-bold">{children}</strong>,
+                          code({ node, inline, className, children, ...props }: any) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline && match ? (
+                              <div className="rounded-xl overflow-hidden my-3 border border-white/8 shadow-xl">
+                                <div className="bg-[#1a1a1a] px-3 py-1.5 text-[9px] text-gray-500 border-b border-white/5 font-mono"><span>{match[1].toUpperCase()}</span></div>
+                                <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" customStyle={{ margin: 0, padding: '0.875rem', background: '#0d0d0d', fontSize: '11px', lineHeight: '1.5' }} {...props}>
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              </div>
+                            ) : <code className="bg-blue-500/10 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs border border-blue-500/15" {...props}>{children}</code>;
+                          },
+                        }}>
+                          {msg.text}
+                        </ReactMarkdown>
+                      ) : msg.text
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+
+              {isThinking && (
+                <div className="flex justify-start">
+                  <div className="bg-[#141414] px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-3 border border-white/6">
+                    <Brain className="text-blue-400 animate-pulse" size={16} />
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-white/8 bg-[#080808] shrink-0">
+              {chatHistory.length > 0 && !isStreaming && (
+                <div className="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar">
+                  {[{ label: '💡 Explain more', mode: 'explain' as const }, { label: '🎲 Quiz me', mode: 'quiz' as const }].map((pill) => (
+                    <button key={pill.label} onClick={() => handleAskMentor(pill.mode)} className="shrink-0 text-[11px] text-gray-500 hover:text-white bg-white/4 hover:bg-white/8 border border-white/6 hover:border-white/15 px-3 py-1.5 rounded-full transition-all">{pill.label}</button>
+                  ))}
+                </div>
+              )}
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full bg-[#141414] border border-white/8 rounded-2xl py-3.5 pl-4 pr-12 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-gray-700"
+                  placeholder="Ask anything about this topic…"
+                  value={chatInput}
+                  onChange={(e) => dispatch(setChatInput(e.target.value))}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !isStreaming) handleAskMentor('chat'); }}
+                  disabled={isStreaming}
+                />
+                <button onClick={() => handleAskMentor('chat')} disabled={isStreaming || !chatInput.trim()} className="absolute right-2 top-2 bottom-2 w-9 bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                  {isStreaming ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                </button>
               </div>
-            )}
-            <div className="relative">
-              <input
-                type="text"
-                className="w-full bg-[#141414] border border-white/8 rounded-2xl py-3.5 pl-4 pr-12 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors placeholder:text-gray-700"
-                placeholder="Ask anything about this topic…"
-                value={chatInput}
-                onChange={(e) => dispatch(setChatInput(e.target.value))}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !isStreaming) handleAskMentor('chat'); }}
-                disabled={isStreaming}
-              />
-              <button onClick={() => handleAskMentor('chat')} disabled={isStreaming || !chatInput.trim()} className="absolute right-2 top-2 bottom-2 w-9 bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                {isStreaming ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ACHIEVEMENTS MODAL */}
+      {/* ── ACHIEVEMENTS MODAL ── */}
       {showAchievements && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-white/8 rounded-3xl max-w-xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
@@ -1323,7 +1412,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MISSION XP GATE MODAL */}
+      {/* ── MISSION XP GATE MODAL ── */}
       {showXpGate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl max-w-sm w-full shadow-2xl p-6">
@@ -1368,7 +1457,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* TEST RETRY GATE MODAL */}
+      {/* ── TEST RETRY GATE MODAL ── */}
       {testRetryGate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl max-w-sm w-full shadow-2xl p-6">
@@ -1435,7 +1524,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* TEST MODAL */}
+      {/* ── TEST MODAL ── */}
       {testMilestone && (
         <TestModal
           milestone={testMilestone}
