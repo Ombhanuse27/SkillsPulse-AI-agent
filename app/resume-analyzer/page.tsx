@@ -13,7 +13,8 @@ import {
   Play, Lightbulb, Clock, Target, 
   TrendingUp, Eye, ShieldCheck, Zap, Layers,
   ChevronRight, Calendar, FileText,
-  Menu, Home, Map, LogOut, ChevronLeft, Cpu, Sparkles
+  Menu, Home, Map, LogOut, ChevronLeft, Cpu, Sparkles,
+  Briefcase, AlignLeft, FileUp
 } from "lucide-react";
 
 // ─── COST CONFIGURATION ───────────────────────────────────────────────────────
@@ -369,146 +370,237 @@ export default function ResumeAnalyzerPage() {
   const metrics = getDerivedMetrics();
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden">
+    <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden relative">
       
-      {/* ── VERTICAL SIDEBAR NAVBAR ── */}
-      <Navbar user={user} onLogout={handleLogout} progress={userProgress ?? undefined} />
+      {/* ── BACKGROUND AMBIENT GLOWS ── */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[150px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[150px]" />
+      </div>
 
-      {/* ── MAIN AREA — offset for sidebar ── */}
-      <div className="md:ml-64 transition-all duration-300 relative z-10 p-6 md:p-12">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 pt-12 md:pt-0">
+      {/* ── VERTICAL SIDEBAR NAVBAR (Only when logged in) ── */}
+      {user && (
+        <Navbar user={user} onLogout={handleLogout} progress={userProgress ?? undefined} />
+      )}
+
+      {/* ── MAIN AREA ── */}
+      <div className={`transition-all duration-300 relative z-10 p-4 sm:p-8 md:p-12 ${user ? 'md:ml-64' : ''}`}>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-12 gap-8 pt-12 md:pt-0">
           
           {/* INPUT SECTION */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="xl:col-span-4 space-y-6">
             <div className="mb-4">
-              <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Resume Audit</h1>
-              <p className="text-gray-500 mt-2 text-sm">AI-powered resume alignment & roadmap.</p>
+              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-sky-400 to-purple-400 bg-clip-text text-transparent tracking-tight">Resume Audit</h1>
+              <p className="text-gray-400 mt-2 text-sm leading-relaxed">AI-powered resume alignment, gap analysis, and tailored career roadmap.</p>
             </div>
-            <div className="bg-[#111] p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4">
-              
+            
+            <div className="bg-[#0a0a0a]/80 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)] space-y-5 relative overflow-hidden">
+              {/* Decorative top gradient line */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500/0 via-blue-500/50 to-blue-500/0" />
+
               {!user && !localStorage.getItem('free_resume_analysis_used') && (
-                <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded-lg text-xs font-bold flex items-center gap-2">
-                  <Sparkles size={14} /> Your first analysis is free!
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5">
+                  <Sparkles size={16} className="text-green-300 animate-pulse" /> 
+                  <span>Your first analysis is on the house!</span>
                 </div>
               )}
               {user && (
-                <div className="flex justify-between items-center text-xs font-bold px-1">
-                  <span className="text-gray-400">Cost: <span className="text-blue-400">{RESUME_ANALYSIS_XP_COST} XP</span></span>
-                  <span className="text-gray-400">Balance: <span className={((userProgress?.stats?.totalXP ?? 0) >= RESUME_ANALYSIS_XP_COST) ? "text-green-400" : "text-red-400"}>{userProgress?.stats?.totalXP ?? 0} XP</span></span>
+                <div className="flex justify-between items-center bg-white/5 border border-white/5 rounded-2xl p-3">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-blue-400" />
+                    <span className="text-xs font-bold text-gray-300">Cost: {RESUME_ANALYSIS_XP_COST} XP</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Balance</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${((userProgress?.stats?.totalXP ?? 0) >= RESUME_ANALYSIS_XP_COST) ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                      {userProgress?.stats?.totalXP ?? 0} XP
+                    </span>
+                  </div>
                 </div>
               )}
 
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Target Role</label>
-                <input value={jobRole} onChange={(e) => setJobRole(e.target.value)} className="w-full bg-[#1a1a1a] border border-gray-700 p-3 rounded-lg mt-1 text-white focus:outline-none focus:border-blue-500" placeholder="e.g. Backend Engineer" />
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Briefcase size={12}/> Target Role</label>
+                <input 
+                  value={jobRole} 
+                  onChange={(e) => setJobRole(e.target.value)} 
+                  className="w-full bg-black/50 border border-white/10 p-3.5 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-gray-600" 
+                  placeholder="e.g. Senior Frontend Engineer" 
+                />
               </div>
+              
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Job Description</label>
-                <textarea value={jdText} onChange={(e) => setJdText(e.target.value)} className="w-full h-32 bg-[#1a1a1a] border border-gray-700 p-3 rounded-lg mt-1 text-sm text-gray-300 focus:outline-none focus:border-blue-500 custom-scrollbar" placeholder="Paste JD..." />
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><AlignLeft size={12}/> Job Description</label>
+                <textarea 
+                  value={jdText} 
+                  onChange={(e) => setJdText(e.target.value)} 
+                  className="w-full h-36 bg-black/50 border border-white/10 p-3.5 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all custom-scrollbar placeholder:text-gray-600 resize-none" 
+                  placeholder="Paste the target job description here..." 
+                />
               </div>
+              
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Resume (PDF)</label>
-                <input type="file" accept=".pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full mt-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition"/>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileUp size={12}/> Resume (PDF)</label>
+                <div className="relative group">
+                  <input 
+                    type="file" 
+                    accept=".pdf" 
+                    onChange={(e) => setFile(e.target.files?.[0] || null)} 
+                    className="w-full text-sm text-gray-400 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:bg-white/5 file:text-white file:font-medium file:cursor-pointer hover:file:bg-white/10 file:transition-all cursor-pointer border border-white/10 rounded-xl bg-black/50 overflow-hidden group-hover:border-white/20 transition-all"
+                  />
+                </div>
               </div>
               
               <button 
                 onClick={handleProcess} 
                 disabled={loading || (user && (userProgress?.stats?.totalXP ?? 0) < RESUME_ANALYSIS_XP_COST)} 
-                className={`w-full py-4 rounded-xl font-bold text-sm shadow-lg transition-all ${loading ? 'bg-gray-700' : (user && (userProgress?.stats?.totalXP ?? 0) < RESUME_ANALYSIS_XP_COST) ? 'bg-red-500/20 text-red-300 border border-red-500/30 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                className={`w-full py-4 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 group
+                  ${loading 
+                    ? 'bg-gray-800 text-gray-400 cursor-not-allowed' 
+                    : (user && (userProgress?.stats?.totalXP ?? 0) < RESUME_ANALYSIS_XP_COST) 
+                      ? 'bg-red-500/10 text-red-400 border border-red-500/20 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-blue-500/25 hover:-translate-y-0.5'
+                  }`}
               >
-                {loading ? "Analyzing Context..." : (user && (userProgress?.stats?.totalXP ?? 0) < RESUME_ANALYSIS_XP_COST) ? "Not Enough XP" : "Launch Analysis 🚀"}
+                {loading ? (
+                  <><RefreshCw size={16} className="animate-spin" /> Analyzing Context...</>
+                ) : (user && (userProgress?.stats?.totalXP ?? 0) < RESUME_ANALYSIS_XP_COST) ? (
+                  "Not Enough XP"
+                ) : (
+                  <><Sparkles size={16} className="group-hover:animate-pulse" /> Launch Analysis</>
+                )}
               </button>
             </div>
           </div>
 
           {/* DASHBOARD */}
-          <div className="lg:col-span-8">
+          <div className="xl:col-span-8">
             {!result ? (
-              <div className="h-full bg-[#111] rounded-2xl border border-gray-800 flex flex-col items-center justify-center text-gray-600 p-10 min-h-[600px]">
-                <Terminal size={64} className="opacity-20 mb-4" />
-                <p className="font-bold">Ready to analyze.</p>
-                <p className="text-xs text-gray-500 mt-2">Upload your resume and the job description to see your fit.</p>
+              <div className="h-full bg-[#0a0a0a]/50 backdrop-blur-sm rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center p-12 min-h-[600px] shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent opacity-50" />
+                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6 relative z-10">
+                  <Terminal size={32} className="text-gray-500" />
+                </div>
+                <h3 className="text-xl font-black text-white mb-2 relative z-10">Awaiting Submissions</h3>
+                <p className="text-sm text-gray-500 max-w-sm relative z-10">Upload your resume and a target job description to uncover your fit, skill gaps, and a personalized learning roadmap.</p>
               </div>
             ) : (
-              <div className="bg-[#111] rounded-2xl border border-gray-800 shadow-2xl overflow-hidden min-h-[600px] flex flex-col">
+              <div className="bg-[#0a0a0a]/80 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden min-h-[600px] flex flex-col">
                 
                 {/* Header */}
-                <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-gradient-to-r from-blue-900/10 to-purple-900/10">
+                <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 bg-gradient-to-r from-blue-900/10 via-transparent to-purple-900/10 relative">
+                  <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Agent Report</h2>
-                    <div className="flex gap-2 mt-2">
-                      <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-blue-500/20 text-blue-300">{result.status} Match</span>
-                      {resumeId && <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-purple-500/20 text-purple-300">DB Cached</span>}
+                    <h2 className="text-2xl font-black text-white flex items-center gap-2">
+                      <ShieldCheck size={24} className="text-blue-400" /> Agent Report
+                    </h2>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-300 border border-blue-500/20">{result.status} Match</span>
+                      {resumeId && <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-300 border border-purple-500/20">DB Cached</span>}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className={`text-5xl font-black ${result.score > 70 ? "text-green-500" : "text-yellow-500"}`}>{result.score}%</div>
-                    <div className="text-xs text-gray-400 uppercase tracking-widest mt-1">Fit Score</div>
+                  <div className="text-left sm:text-right bg-black/40 p-4 rounded-2xl border border-white/5 min-w-[140px]">
+                    <div className={`text-4xl font-black ${result.score >= 80 ? "text-green-400" : result.score >= 60 ? "text-yellow-400" : "text-red-400"}`}>
+                      {result.score}<span className="text-2xl text-gray-500">%</span>
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Overall Fit Score</div>
                   </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-800 overflow-x-auto custom-scrollbar">
+                <div className="flex border-b border-white/5 overflow-x-auto custom-scrollbar px-2">
                   {['overview', 'roadmap', 'ats', 'letter', 'quiz', 'builder'].map((tab) => (
-                    <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-4 text-sm font-bold uppercase tracking-wider transition whitespace-nowrap ${activeTab === tab ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-900/5' : 'text-gray-500 hover:text-gray-300'}`}>
-                      {tab === 'letter' ? 'Cover Letter' : tab === 'builder' ? 'Ideas' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    <button 
+                      key={tab} 
+                      onClick={() => setActiveTab(tab)} 
+                      className={`px-5 py-4 text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap relative
+                        ${activeTab === tab ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-t-xl'}
+                      `}
+                    >
+                      {tab === 'letter' ? 'Cover Letter' : tab === 'builder' ? 'Ideas' : tab}
+                      {activeTab === tab && (
+                        <span className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-500 rounded-t-full shadow-[0_-2px_10px_rgba(59,130,246,0.5)]" />
+                      )}
                     </button>
                   ))}
                 </div>
 
-                <div className="p-8 overflow-y-auto max-h-[600px] custom-scrollbar">
+                <div className="p-6 md:p-8 overflow-y-auto max-h-[600px] custom-scrollbar">
                   
                   {/* 1. OVERVIEW TAB */}
                   {activeTab === 'overview' && (
-                    <div className="animate-in fade-in space-y-6">
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
+                      
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800"><div className="text-gray-500 text-xs font-bold uppercase mb-2">Time to Ready</div><div className="text-2xl font-bold text-white">{metrics.timeToReady}</div></div>
-                          <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800"><div className="text-gray-500 text-xs font-bold uppercase mb-2">Portfolio Status</div><div className="text-2xl font-bold text-white">{result.status}</div></div>
-                          <div className="bg-[#1a1a1a] p-5 rounded-xl border border-gray-800"><div className="text-gray-500 text-xs font-bold uppercase mb-2">Tech Coverage</div><div className="text-2xl font-bold text-white">{metrics.coverage}%</div></div>
+                        <div className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="text-gray-500 text-[10px] font-black tracking-widest uppercase mb-1">Time to Ready</div>
+                          <div className="text-2xl font-black text-white">{metrics.timeToReady}</div>
+                        </div>
+                        <div className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="text-gray-500 text-[10px] font-black tracking-widest uppercase mb-1">Portfolio Status</div>
+                          <div className="text-2xl font-black text-white capitalize">{result.status.replace('_', ' ')}</div>
+                        </div>
+                        <div className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="text-gray-500 text-[10px] font-black tracking-widest uppercase mb-1">Tech Coverage</div>
+                          <div className="text-2xl font-black text-white">{metrics.coverage}%</div>
+                        </div>
                       </div>
                       
-                      <div className="bg-blue-900/10 p-6 rounded-xl border border-blue-900/30">
-                          <h3 className="text-blue-400 font-bold mb-3 flex items-center gap-2"><Brain size={18}/> Executive Summary</h3>
-                          <p className="text-blue-100/80 leading-relaxed">"{result.summary}"</p>
+                      <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/5 p-6 rounded-2xl border border-blue-500/20 shadow-inner">
+                        <h3 className="text-blue-400 font-black text-sm mb-3 flex items-center gap-2 uppercase tracking-wide"><Brain size={16}/> Executive Summary</h3>
+                        <p className="text-blue-50 text-sm leading-relaxed">"{result.summary}"</p>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                               <h4 className="text-green-400 font-bold text-sm mb-4 flex items-center gap-2"><Zap size={16}/> Strength Highlights</h4>
-                               <div className="flex flex-wrap gap-2">{metrics.strengths?.map((s: string, i: number) => <span key={i} className="px-3 py-1.5 bg-green-900/20 border border-green-500/30 text-green-300 rounded text-xs">{s}</span>)}</div>
+                        <div className="bg-black/40 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-green-400 font-black text-xs uppercase tracking-wider mb-4 flex items-center gap-2"><CheckCircle size={14}/> Strength Highlights</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {metrics.strengths?.map((s: string, i: number) => <span key={i} className="px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-300 rounded-lg text-xs font-medium">{s}</span>)}
                           </div>
-                          <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                              <h4 className="text-red-400 font-bold text-sm mb-4 flex items-center gap-2"><AlertOctagon size={16}/> Critical Skill Gaps</h4>
-                               <div className="flex flex-wrap gap-2">{result.topMissingSkills?.map((s: string, i: number) => <span key={i} className="px-3 py-1.5 bg-red-900/20 border border-red-500/30 text-red-300 rounded text-xs">{s}</span>)}</div>
+                        </div>
+                        <div className="bg-black/40 p-6 rounded-2xl border border-white/5">
+                          <h4 className="text-red-400 font-black text-xs uppercase tracking-wider mb-4 flex items-center gap-2"><AlertOctagon size={14}/> Critical Skill Gaps</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {result.topMissingSkills?.map((s: string, i: number) => <span key={i} className="px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-300 rounded-lg text-xs font-medium">{s}</span>)}
                           </div>
+                        </div>
                       </div>
 
                       {/* GENERATE BUTTONS */}
-                      <div className="grid md:grid-cols-2 gap-4 pt-4">
-                         <button onClick={() => handleGenerateQuiz(getQuizTopic())} disabled={featureLoading} className="p-4 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/30 rounded-xl hover:scale-[1.02] transition text-left group">
-                           <h3 className="font-bold text-white flex items-center gap-2"><Play size={20} className="text-purple-400"/> Test My Knowledge</h3>
-                           <p className="text-xs text-gray-400 mt-1">{featureLoading ? "Generating..." : `Take a ${getQuizTopic()} quiz.`}</p>
-                         </button>
-                         <button onClick={handleGenerateIdeas} disabled={featureLoading} className="p-4 bg-gradient-to-br from-green-900/40 to-emerald-900/40 border border-green-500/30 rounded-xl hover:scale-[1.02] transition text-left group">
-                           <h3 className="font-bold text-white flex items-center gap-2"><Lightbulb size={20} className="text-green-400"/> Project Ideas</h3>
-                           <p className="text-xs text-gray-400 mt-1">{featureLoading ? "Brainstorming..." : "Generate portfolio ideas."}</p>
-                         </button>
+                      <div className="grid md:grid-cols-2 gap-4 pt-2">
+                        <button onClick={() => handleGenerateQuiz(getQuizTopic())} disabled={featureLoading} className="p-5 bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-2xl hover:bg-purple-500/10 transition-all text-left group">
+                          <h3 className="font-bold text-purple-300 flex items-center gap-2 text-sm"><Play size={16} className="text-purple-400 group-hover:scale-110 transition-transform"/> Test My Knowledge</h3>
+                          <p className="text-xs text-gray-500 mt-2">{featureLoading ? "Generating assessment..." : `Take a specialized ${getQuizTopic()} quiz.`}</p>
+                        </button>
+                        <button onClick={handleGenerateIdeas} disabled={featureLoading} className="p-5 bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded-2xl hover:bg-green-500/10 transition-all text-left group">
+                          <h3 className="font-bold text-green-300 flex items-center gap-2 text-sm"><Lightbulb size={16} className="text-green-400 group-hover:scale-110 transition-transform"/> Project Ideas</h3>
+                          <p className="text-xs text-gray-500 mt-2">{featureLoading ? "Brainstorming concepts..." : "Generate portfolio ideas to cover your gaps."}</p>
+                        </button>
                       </div>
                     </div>
                   )}
 
                   {/* 2. ROADMAP TAB */}
                   {activeTab === 'roadmap' && (
-                    <div className="space-y-0 animate-in fade-in relative">
-                      <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-800"></div>
+                    <div className="space-y-0 animate-in fade-in slide-in-from-bottom-2 duration-500 relative">
+                      <div className="absolute left-6 top-4 bottom-4 w-[2px] bg-white/5 rounded-full"></div>
                       {result.roadmap?.map((week: any, i: number) => (
                         <div key={i} className="relative pl-16 pb-8 group">
-                          <div className="absolute left-3 top-0 w-6 h-6 rounded-full bg-[#0a0a0a] border-2 border-blue-500 z-10 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-blue-500"></div></div>
-                          <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800 hover:border-blue-500/30 transition shadow-lg">
-                            <h3 className="text-xl font-bold text-white mb-4">
+                          <div className="absolute left-[18px] top-0 w-6 h-6 rounded-full bg-[#0a0a0a] border-[3px] border-blue-500 z-10 flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
+                          </div>
+                          <div className="bg-black/40 p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-all shadow-lg group-hover:-translate-y-1 group-hover:shadow-blue-500/10">
+                            <h3 className="text-lg font-black text-white mb-4">
                               <span className="text-blue-400">{week.week.toString().toLowerCase().includes("week") ? week.week : `Week ${week.week}`}</span>: {week.goal}
                             </h3>
-                            <div className="space-y-3">{week.tasks.map((t: string, j: number) => (<div key={j} className="flex items-start gap-3 p-3 rounded-lg bg-black/40 border border-gray-800/50"><span className="text-sm text-gray-300">{t}</span></div>))}</div>
+                            <div className="space-y-2.5">
+                              {week.tasks.map((t: string, j: number) => (
+                                <div key={j} className="flex items-start gap-3 p-3.5 rounded-xl bg-white/5 border border-white/5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                                  <span className="text-sm text-gray-300 leading-relaxed">{t}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -517,36 +609,47 @@ export default function ResumeAnalyzerPage() {
 
                   {/* 3. ATS FIXES TAB */}
                   {activeTab === 'ats' && (
-                    <div className="space-y-6 animate-in fade-in">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                       {(!result.atsFixes || result.atsFixes.length === 0) ? (
-                          <div className="text-center text-gray-500 py-10">No ATS improvements needed. Good job!</div>
+                        <div className="flex flex-col items-center justify-center py-12 text-gray-500 bg-white/5 rounded-3xl border border-white/5">
+                          <ShieldCheck size={48} className="text-green-500/50 mb-4" />
+                          <p className="font-bold text-white">ATS Perfected</p>
+                          <p className="text-sm">No keyword or formatting improvements needed. Great job!</p>
+                        </div>
                       ) : (
-                          result.atsFixes.map((fix: any, i: number) => (
-                          <div key={i} className="bg-[#1a1a1a] rounded-xl border border-gray-800 overflow-hidden group">
-                              <div className="p-5 bg-red-900/5 border-b border-red-900/10">
-                              <div className="text-xs font-bold text-red-400 uppercase mb-2 flex items-center gap-2"><AlertOctagon size={12}/> Original</div>
-                              <p className="text-gray-500 text-sm line-through decoration-red-500/30">{fix.original}</p>
-                              </div>
-                              <div className="p-5 bg-green-900/5">
-                              <div className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2"><CheckCircle size={12}/> AI Improvement</div>
+                        result.atsFixes.map((fix: any, i: number) => (
+                          <div key={i} className="bg-black/40 rounded-2xl border border-white/5 overflow-hidden group hover:border-white/10 transition-colors">
+                            <div className="p-5 bg-red-500/5 border-b border-white/5">
+                              <div className="text-[10px] font-black tracking-widest text-red-400 uppercase mb-2 flex items-center gap-2"><AlertOctagon size={14}/> Original Bullet</div>
+                              <p className="text-gray-400 text-sm line-through decoration-red-500/50">{fix.original}</p>
+                            </div>
+                            <div className="p-5 bg-green-500/5">
+                              <div className="text-[10px] font-black tracking-widest text-green-400 uppercase mb-2 flex items-center gap-2"><CheckCircle size={14}/> Agent Improvement</div>
                               <p className="text-gray-200 text-sm font-medium leading-relaxed">{fix.improved}</p>
-                              <div className="mt-3 pt-3 border-t border-green-500/10"><p className="text-xs text-green-500/70 italic flex gap-2"><Lightbulb size={12}/> {fix.reason}</p></div>
+                              <div className="mt-4 pt-3 border-t border-green-500/20">
+                                <p className="text-xs text-green-400/80 italic flex items-start gap-2"><Lightbulb size={14} className="shrink-0 mt-0.5"/> {fix.reason}</p>
                               </div>
+                            </div>
                           </div>
-                          ))
+                        ))
                       )}
                     </div>
                   )}
 
                   {/* 4. COVER LETTER TAB */}
                   {activeTab === 'letter' && (
-                    <div className="space-y-6 animate-in fade-in">
-                      <div className="bg-[#1a1a1a] p-8 rounded-xl border border-gray-800 shadow-lg">
-                        <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-2xl font-bold text-white flex items-center gap-2"><FileText size={24} className="text-blue-400"/> Generated Cover Letter</h3>
-                          <button onClick={() => navigator.clipboard.writeText(result.coverLetter)} className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded text-gray-300 transition">Copy Text</button>
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      <div className="bg-black/40 p-8 rounded-3xl border border-white/5 shadow-2xl relative">
+                        <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                          <h3 className="text-xl font-black text-white flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center"><FileText size={20} className="text-blue-400"/></div>
+                            Generated Cover Letter
+                          </h3>
+                          <button onClick={() => navigator.clipboard.writeText(result.coverLetter)} className="text-xs font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl text-gray-300 transition-colors flex items-center gap-2">
+                            Copy Text
+                          </button>
                         </div>
-                        <div className="prose prose-invert max-w-none text-gray-300 whitespace-pre-line leading-relaxed">
+                        <div className="prose prose-invert max-w-none text-gray-300 text-sm md:text-base whitespace-pre-line leading-relaxed tracking-wide">
                           {result.coverLetter || "No cover letter generated."}
                         </div>
                       </div>
@@ -555,27 +658,92 @@ export default function ResumeAnalyzerPage() {
 
                   {/* 5. QUIZ TAB */}
                   {activeTab === 'quiz' && (
-                    <div className="space-y-6 animate-in fade-in">
-                       {!quizData ? <div className="text-center text-gray-500 py-10">Select "Test My Knowledge" in Overview tab.</div> : quizData.map((q:any, i:number) => (
-                          <div key={i} className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800">
-                            <h4 className="font-bold text-white mb-4">{q.question}</h4>
-                            <div className="space-y-2">{q.options.map((opt:string, idx:number) => (<button key={idx} onClick={() => setSelectedAnswers(prev => ({...prev, [i]: idx}))} className={`w-full text-left p-4 rounded-lg border text-sm transition font-medium ${selectedAnswers[i]===idx ? (idx===q.correctAnswer ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400') : 'bg-black/50 border-gray-700'}`}>{opt}</button>))}</div>
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      {!quizData ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-gray-500 bg-white/5 rounded-3xl border border-white/5">
+                          <Play size={40} className="opacity-20 mb-4" />
+                          <p className="text-sm font-medium">Select "Test My Knowledge" in the Overview tab to generate questions.</p>
+                        </div>
+                      ) : (
+                        quizData.map((q:any, i:number) => (
+                          <div key={i} className="bg-black/40 p-6 rounded-3xl border border-white/5 hover:border-white/10 transition-colors">
+                            <h4 className="font-bold text-white mb-5 text-sm md:text-base leading-relaxed"><span className="text-purple-400 mr-2">Q{i+1}.</span>{q.question}</h4>
+                            <div className="space-y-3">
+                              {q.options.map((opt:string, idx:number) => {
+                                const isSelected = selectedAnswers[i] === idx;
+                                const isCorrect = idx === q.correctAnswer;
+                                const showResult = selectedAnswers[i] !== undefined;
+                                
+                                let btnClass = "bg-white/5 border-white/10 hover:bg-white/10 text-gray-300";
+                                if (showResult) {
+                                  if (isCorrect) btnClass = "bg-green-500/20 border-green-500/50 text-green-300";
+                                  else if (isSelected) btnClass = "bg-red-500/20 border-red-500/50 text-red-300";
+                                  else btnClass = "bg-white/2 border-transparent text-gray-600 opacity-50";
+                                }
+
+                                return (
+                                  <button 
+                                    key={idx} 
+                                    disabled={showResult}
+                                    onClick={() => setSelectedAnswers(prev => ({...prev, [i]: idx}))} 
+                                    className={`w-full text-left p-4 rounded-xl border text-sm transition-all font-medium flex items-center justify-between ${btnClass} ${showResult ? 'cursor-default' : 'cursor-pointer'}`}
+                                  >
+                                    <span>{opt}</span>
+                                    {showResult && isCorrect && <CheckCircle size={16} className="text-green-400 shrink-0 ml-4" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {selectedAnswers[i] !== undefined && (
+                              <div className="mt-5 p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                                <p className="text-xs text-purple-300 leading-relaxed"><span className="font-bold uppercase tracking-widest text-[10px] mr-2">Explanation:</span> {q.explanation}</p>
+                              </div>
+                            )}
                           </div>
-                       ))}
+                        ))
+                      )}
                     </div>
                   )}
 
                   {/* 6. BUILDER TAB */}
                   {activeTab === 'builder' && (
-                     <div className="space-y-6 animate-in fade-in">
-                       {!projectIdeas ? <div className="text-center text-gray-500 py-10">Select "Project Ideas" in Overview tab.</div> : projectIdeas.map((idea:any, i:number) => (
-                          <div key={i} className="p-6 rounded-xl border border-gray-800 bg-[#1a1a1a]">
-                              <h3 className="text-xl font-bold text-white mb-2">{idea.title}</h3>
-                              <p className="text-gray-400 text-sm mb-4">{idea.description}</p>
-                              <div className="flex gap-2 flex-wrap">{idea.techStack.map((t:string, k:number) => <span key={k} className="px-2 py-1 bg-black rounded border border-gray-800 text-xs text-gray-400">{t}</span>)}</div>
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      {!projectIdeas ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-gray-500 bg-white/5 rounded-3xl border border-white/5">
+                          <Lightbulb size={40} className="opacity-20 mb-4" />
+                          <p className="text-sm font-medium">Select "Project Ideas" in the Overview tab to brainstorm concepts.</p>
+                        </div>
+                      ) : (
+                        projectIdeas.map((idea:any, i:number) => (
+                          <div key={i} className="p-8 rounded-3xl border border-white/5 bg-black/40 hover:border-white/10 transition-colors relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                              <Layers size={80} />
+                            </div>
+                            <h3 className="text-xl font-black text-white mb-3 relative z-10">{idea.title}</h3>
+                            <p className="text-gray-400 text-sm mb-6 leading-relaxed relative z-10 max-w-2xl">{idea.description}</p>
+                            <div className="relative z-10 mb-6">
+                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Key Features</p>
+                              <ul className="grid sm:grid-cols-2 gap-2 text-xs text-gray-300">
+                                {idea.keyFeatures?.map((f:string, idx:number) => (
+                                  <li key={idx} className="flex items-start gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                                    {f}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="relative z-10 pt-4 border-t border-white/5">
+                              <div className="flex gap-2 flex-wrap items-center">
+                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-2">Stack:</span>
+                                {idea.techStack.map((t:string, k:number) => (
+                                  <span key={k} className="px-2.5 py-1 bg-white/5 rounded-md border border-white/10 text-[11px] font-medium text-gray-300">{t}</span>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                       ))}
-                     </div>
+                        ))
+                      )}
+                    </div>
                   )}
 
                 </div>
@@ -586,10 +754,10 @@ export default function ResumeAnalyzerPage() {
       </div>
       
       <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
       `}</style>
     </div>
   );
