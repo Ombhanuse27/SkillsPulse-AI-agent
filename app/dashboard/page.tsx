@@ -26,46 +26,12 @@ import {
 import type { ChatMessage } from '@/store/slices/mentorSlice';
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
-interface QuizData {
-  question: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-}
-
-interface TestQuestion {
-  question: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-interface TestResult {
-  grade: string;
-  score: number;
-  total: number;
-  attempts: number;
-  passed: boolean;
-  xpEarned: number;
-  lastAttemptAt: string;
-}
-
+interface QuizData { question: string; options: string[]; correctIndex: number; explanation: string; }
+interface TestQuestion { question: string; options: string[]; correctIndex: number; explanation: string; difficulty: 'easy' | 'medium' | 'hard'; }
+interface TestResult { grade: string; score: number; total: number; attempts: number; passed: boolean; xpEarned: number; lastAttemptAt: string; }
 interface UserProgress {
-  stats: {
-    level: number;
-    totalXP: number;
-    currentStreak: number;
-    xpToNextLevel: number;
-    nextLevelXP: number;
-  };
-  dailyGoal: {
-    minsCompleted: number;
-    targetMins: number;
-    quizzesSolved: number;
-    targetQuizzes: number;
-    progressPercentage: number;
-  };
+  stats: { level: number; totalXP: number; currentStreak: number; xpToNextLevel: number; nextLevelXP: number; };
+  dailyGoal: { minsCompleted: number; targetMins: number; quizzesSolved: number; targetQuizzes: number; progressPercentage: number; };
   achievements: any[];
 }
 
@@ -90,29 +56,19 @@ const GRADE_CONFIG: Record<string, { label: string; color: string; bg: string; b
 
 function getGrade(score: number, total: number): string {
   const r = score / total;
-  if (r === 1) return 'S';
-  if (r >= 0.8) return 'A';
-  if (r >= 0.6) return 'B';
-  if (r >= 0.4) return 'C';
-  return 'F';
+  if (r === 1) return 'S'; if (r >= 0.8) return 'A'; if (r >= 0.6) return 'B'; if (r >= 0.4) return 'C'; return 'F';
 }
 
 function getTestXP(score: number, total: number): number {
   const r = score / total;
-  if (r === 1) return 100;
-  if (r >= 0.8) return 75;
-  if (r >= 0.6) return 50;
-  if (r >= 0.4) return 25;
-  return 10;
+  if (r === 1) return 100; if (r >= 0.8) return 75; if (r >= 0.6) return 50; if (r >= 0.4) return 25; return 10;
 }
 
 // ─── VERTICAL SIDEBAR NAVBAR ──────────────────────────────────────────────────
 function Navbar({ user, onLogout, progress }: { user: any; onLogout: () => void; progress?: UserProgress; }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const xpPercentage = progress?.stats
-    ? ((progress.stats.nextLevelXP - progress.stats.xpToNextLevel) / progress.stats.nextLevelXP) * 100
-    : 0;
+  const xpPercentage = progress?.stats ? ((progress.stats.nextLevelXP - progress.stats.xpToNextLevel) / progress.stats.nextLevelXP) * 100 : 0;
 
   return (
     <>
@@ -480,10 +436,14 @@ function TestButton({ milestone, localTestResults, onOpenTest }: { milestone: an
 }
 
 // ─── ROADMAP CARD ─────────────────────────────────────────────────────────────
-function RoadmapCard({ map, isExpanded, onToggle, onMilestoneClick, onStartMilestone, onCompleteMilestone, onTrackResource, onAskMentor, onOpenTest, isDailyCourse, localTestResults }: any) {
-  const completedCount = map.milestones.filter((m: any) => m.progress?.status === 'completed').length;
-  const pct = map.completionPercentage;
-  const inProgressCount = map.milestones.filter((m: any) => m.progress?.status === 'in_progress').length;
+function RoadmapCard({ map, isExpanded, onToggle, onMilestoneClick, onStartMilestone, onCompleteMilestone, onTrackResource, onAskMentor, onOpenTest, isDailyCourse, localTestResults, optimisticStatus }: any) {
+  
+  // Calculate instantaneous visual state mapped with optimistic UI state overlays
+  const getStatus = (m: any) => optimisticStatus[m.id] || m.progress?.status || 'not_started';
+  
+  const completedCount = map.milestones.filter((m: any) => getStatus(m) === 'completed').length;
+  const inProgressCount = map.milestones.filter((m: any) => getStatus(m) === 'in_progress').length;
+  const pct = map.milestones.length ? Math.round((completedCount / map.milestones.length) * 100) : 0;
 
   return (
     <div className={`mb-6 bg-[#111] border-2 border-white/5 rounded-3xl overflow-hidden transition-all duration-300 ${isExpanded ? 'shadow-xl' : 'hover:border-white/20'}`}>
@@ -511,9 +471,14 @@ function RoadmapCard({ map, isExpanded, onToggle, onMilestoneClick, onStartMiles
       <div className={`overflow-hidden transition-all duration-500 ${isExpanded ? 'max-h-[9999px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="p-5 pt-0 space-y-3 relative before:absolute before:left-[2.15rem] before:top-2 before:bottom-6 before:w-1.5 before:bg-[#1a1a1a] before:rounded-full">
           {map.milestones.map((milestone: any, idx: number) => {
-            const status = milestone.progress?.status || 'not_started';
-            const isLocked = idx > 0 && map.milestones[idx - 1].progress?.status !== 'completed';
+            
+            const status = getStatus(milestone);
+            const isLocked = idx > 0 && getStatus(map.milestones[idx - 1]) !== 'completed';
+            
+            // 🔥 Check Test results state constraints (Strict progression rule)
             const testResult: TestResult | undefined = localTestResults[milestone.id] ?? milestone.progress?.testResult;
+            const hasPassedTest = testResult && PASSING_GRADES.has(testResult.grade);
+            const isTestRequired = !hasPassedTest; // Must pass to be marked done!
 
             return (
               <div key={idx} className={`relative pl-14 transition-all duration-300 ${isLocked ? 'opacity-50 grayscale' : ''}`}>
@@ -544,11 +509,23 @@ function RoadmapCard({ map, isExpanded, onToggle, onMilestoneClick, onStartMiles
                           <Play size={12} fill="currentColor" /> Start
                         </button>
                       )}
+                      
                       {status === 'in_progress' && (
-                        <button onClick={() => onCompleteMilestone(milestone)} className="text-xs bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-xl font-black border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
-                          <CheckCircle size={12} /> Mark Done
+                        <button 
+                          onClick={() => { if(!isTestRequired) onCompleteMilestone(milestone) }} 
+                          disabled={isTestRequired}
+                          title={isTestRequired ? "Pass the test to complete this milestone" : "Mark as Mastered"}
+                          className={`text-xs px-4 py-2 rounded-xl font-black border-b-4 transition-all flex items-center gap-2 ${
+                            isTestRequired 
+                              ? 'bg-[#333] text-gray-500 border-[#222] cursor-not-allowed'
+                              : 'bg-green-500 hover:bg-green-400 text-black border-green-700 active:border-b-0 active:translate-y-1'
+                          }`}
+                        >
+                          {isTestRequired ? <Lock size={12} /> : <CheckCircle size={12} />} 
+                          {isTestRequired ? 'Pass Test to Finish' : 'Mark Done'}
                         </button>
                       )}
+
                       <button onClick={() => onAskMentor('explain', milestone)} className="text-xs bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><Sparkles size={14} className="text-yellow-400"/> Explain</button>
                       <button onClick={() => onAskMentor('quiz', milestone)} className="text-xs bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><GraduationCap size={14} className="text-green-400"/> Quiz</button>
                       
@@ -600,6 +577,9 @@ export default function Dashboard() {
   const [retryLoading, setRetryLoading] = useState(false);
   const [retryError, setRetryError] = useState('');
   const [localTestResults, setLocalTestResults] = useState<Record<string, TestResult>>({});
+
+  // Optimistic UI state overlay to fix laggy inputs
+  const [optimisticStatus, setOptimisticStatus] = useState<Record<string, string>>({});
 
   const user = useAppSelector((s) => s.user.user);
   const { roadmaps, goal, loading } = useAppSelector((s) => s.roadmap);
@@ -672,15 +652,16 @@ export default function Dashboard() {
     } catch { alert('Failed to generate roadmap. Please try again.'); }
   };
 
-  const startMilestone = async (milestone: any) => {
-    await handleProgressAction('start_milestone', { milestoneId: milestone.id });
+  // 🔥 Optimistic Updates - Instantly modify state locally, dispatch silently behind the scenes
+  const startMilestone = (milestone: any) => {
+    setOptimisticStatus(prev => ({ ...prev, [milestone.id]: 'in_progress' }));
     dispatch(setActiveMilestone({ ...milestone, progress: { status: 'in_progress' } }));
+    handleProgressAction('start_milestone', { milestoneId: milestone.id }).catch(console.error);
   };
 
-  const completeMilestone = async (milestone: any) => {
-    if (confirm("Are you sure you've mastered this milestone?")) {
-      await handleProgressAction('complete_milestone', { milestoneId: milestone.id });
-    }
+  const completeMilestone = (milestone: any) => {
+    setOptimisticStatus(prev => ({ ...prev, [milestone.id]: 'completed' }));
+    handleProgressAction('complete_milestone', { milestoneId: milestone.id }).catch(console.error);
   };
 
   const trackResourceView = async (milestone: any, resourceId: string) => {
@@ -900,6 +881,7 @@ export default function Dashboard() {
                   onOpenTest={handleOpenTest}
                   isDailyCourse={map.title.toLowerCase().includes('day') || map.milestones.some((m: any) => m.title.toLowerCase().includes('day'))}
                   localTestResults={localTestResults}
+                  optimisticStatus={optimisticStatus}
                 />
               ))
             )}
