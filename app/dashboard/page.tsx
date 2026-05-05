@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -26,12 +26,46 @@ import {
 import type { ChatMessage } from '@/store/slices/mentorSlice';
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
-interface QuizData { question: string; options: string[]; correctIndex: number; explanation: string; }
-interface TestQuestion { question: string; options: string[]; correctIndex: number; explanation: string; difficulty: 'easy' | 'medium' | 'hard'; }
-interface TestResult { grade: string; score: number; total: number; attempts: number; passed: boolean; xpEarned: number; lastAttemptAt: string; }
+interface QuizData {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+interface TestQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+interface TestResult {
+  grade: string;
+  score: number;
+  total: number;
+  attempts: number;
+  passed: boolean;
+  xpEarned: number;
+  lastAttemptAt: string;
+}
+
 interface UserProgress {
-  stats: { level: number; totalXP: number; currentStreak: number; xpToNextLevel: number; nextLevelXP: number; };
-  dailyGoal: { minsCompleted: number; targetMins: number; quizzesSolved: number; targetQuizzes: number; progressPercentage: number; };
+  stats: {
+    level: number;
+    totalXP: number;
+    currentStreak: number;
+    xpToNextLevel: number;
+    nextLevelXP: number;
+  };
+  dailyGoal: {
+    minsCompleted: number;
+    targetMins: number;
+    quizzesSolved: number;
+    targetQuizzes: number;
+    progressPercentage: number;
+  };
   achievements: any[];
 }
 
@@ -56,19 +90,29 @@ const GRADE_CONFIG: Record<string, { label: string; color: string; bg: string; b
 
 function getGrade(score: number, total: number): string {
   const r = score / total;
-  if (r === 1) return 'S'; if (r >= 0.8) return 'A'; if (r >= 0.6) return 'B'; if (r >= 0.4) return 'C'; return 'F';
+  if (r === 1) return 'S';
+  if (r >= 0.8) return 'A';
+  if (r >= 0.6) return 'B';
+  if (r >= 0.4) return 'C';
+  return 'F';
 }
 
 function getTestXP(score: number, total: number): number {
   const r = score / total;
-  if (r === 1) return 100; if (r >= 0.8) return 75; if (r >= 0.6) return 50; if (r >= 0.4) return 25; return 10;
+  if (r === 1) return 100;
+  if (r >= 0.8) return 75;
+  if (r >= 0.6) return 50;
+  if (r >= 0.4) return 25;
+  return 10;
 }
 
 // ─── VERTICAL SIDEBAR NAVBAR ──────────────────────────────────────────────────
 function Navbar({ user, onLogout, progress }: { user: any; onLogout: () => void; progress?: UserProgress; }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const xpPercentage = progress?.stats ? ((progress.stats.nextLevelXP - progress.stats.xpToNextLevel) / progress.stats.nextLevelXP) * 100 : 0;
+  const xpPercentage = progress?.stats
+    ? ((progress.stats.nextLevelXP - progress.stats.xpToNextLevel) / progress.stats.nextLevelXP) * 100
+    : 0;
 
   return (
     <>
@@ -145,6 +189,19 @@ function Navbar({ user, onLogout, progress }: { user: any; onLogout: () => void;
           </div>
         )}
 
+        {progress?.stats && collapsed && (
+          <div className="flex flex-col items-center gap-3 pb-4 px-3">
+            <div title={`${progress.stats.totalXP.toLocaleString()} XP`} className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center border-b-4 border-blue-500 text-blue-400">
+              <Zap size={20} />
+            </div>
+            {progress.stats.currentStreak > 0 && (
+              <div title={`${progress.stats.currentStreak} day streak`} className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center border-b-4 border-orange-500 text-orange-400">
+                <Flame size={20} className="animate-pulse" />
+              </div>
+            )}
+          </div>
+        )}
+
         <div className={`border-t border-white/5 shrink-0 bg-[#080808] ${collapsed ? 'p-3' : 'p-4'}`}>
           <div className={`flex ${collapsed ? 'flex-col' : ''} items-center gap-3`}>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 p-[2px] shrink-0 border-b-2 border-purple-700">
@@ -158,7 +215,7 @@ function Navbar({ user, onLogout, progress }: { user: any; onLogout: () => void;
                 <p className="text-[10px] text-gray-500 font-bold truncate">{user?.email}</p>
               </div>
             )}
-            <button onClick={onLogout} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-red-500 text-gray-400 hover:text-white border-b-4 border-transparent hover:border-red-700 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all shrink-0">
+            <button onClick={onLogout} title="Sign Out" className="w-10 h-10 rounded-xl bg-white/5 hover:bg-red-500 text-gray-400 hover:text-white border-b-4 border-transparent hover:border-red-700 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all shrink-0">
               <LogOut size={16} />
             </button>
           </div>
@@ -176,26 +233,26 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress; on
   
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-blue-500 transition-all">
+      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-blue-500 transition-all cursor-default">
         <div className="flex justify-between items-start mb-3">
           <div><p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-1">Level {stats.level}</p><h3 className="text-2xl font-black text-white tabular-nums leading-none">{stats.totalXP.toLocaleString()}<span className="text-xs text-blue-400 ml-1">XP</span></h3></div>
-          <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400"><Zap size={20} /></div>
+          <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform"><Zap size={20} /></div>
         </div>
         <div className="w-full bg-black h-2 rounded-full overflow-hidden border border-white/5"><div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${xpPercentage}%` }} /></div>
       </div>
 
-      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-orange-500 transition-all">
+      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-orange-500 transition-all cursor-default">
         <div className="flex justify-between items-start">
           <div><p className="text-orange-400 text-[10px] font-black uppercase tracking-widest mb-1">Day Streak</p><h3 className="text-2xl font-black text-white tabular-nums leading-none">{stats.currentStreak} <span className="text-xl">🔥</span></h3></div>
-          <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-400"><Flame size={20} /></div>
+          <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform"><Flame size={20} /></div>
         </div>
         <p className="text-[11px] font-bold text-gray-500 mt-4">Keep the fire burning!</p>
       </div>
 
-      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-green-500 transition-all">
+      <div className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-green-500 transition-all cursor-default">
         <div className="flex justify-between items-start mb-3">
           <div><p className="text-green-400 text-[10px] font-black uppercase tracking-widest mb-1">Daily Goal</p><div className="flex items-baseline gap-1"><h3 className="text-2xl font-black text-white tabular-nums leading-none">{dailyGoal?.minsCompleted || 0}</h3><span className="text-gray-500 text-xs font-bold">/ {dailyGoal?.targetMins || 0}m</span></div></div>
-          <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center text-green-400"><Target size={20} /></div>
+          <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center text-green-400 group-hover:scale-110 transition-transform"><Target size={20} /></div>
         </div>
         <div className="w-full bg-black h-2 rounded-full overflow-hidden border border-white/5"><div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${dailyGoal?.progressPercentage || 0}%` }} /></div>
       </div>
@@ -203,7 +260,7 @@ function StatsBar({ progress, onShowAchievements }: { progress: UserProgress; on
       <button onClick={onShowAchievements} className="bg-[#111] border-b-4 border-white/10 p-4 rounded-2xl relative overflow-hidden group hover:border-yellow-500 transition-all text-left active:border-b-0 active:translate-y-1">
         <div className="flex justify-between items-start">
           <div><p className="text-yellow-400 text-[10px] font-black uppercase tracking-widest mb-1">Badges</p><h3 className="text-2xl font-black text-white tabular-nums leading-none">{progress.achievements?.length || 0}</h3></div>
-          <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center text-yellow-400"><Trophy size={20} /></div>
+          <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center text-yellow-400 group-hover:scale-110 transition-transform"><Trophy size={20} /></div>
         </div>
         <p className="text-[11px] font-bold text-gray-400 mt-4 flex items-center gap-1 group-hover:text-yellow-400 transition-colors">View Gallery <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" /></p>
       </button>
@@ -228,7 +285,7 @@ function InteractiveQuiz({ quiz, userAnswer, onAnswer }: { quiz: QuizData; userA
             else if (isUserChoice && !isCorrect) { bgClass = 'bg-red-500/20 border-red-500'; textClass = 'text-red-400'; }
           }
           return (
-            <button key={index} onClick={() => !answered && onAnswer(index)} disabled={answered} className={`w-full text-left p-3.5 rounded-xl border-b-4 border-2 transition-all ${bgClass} ${answered ? 'border-b-2 cursor-default' : 'active:border-b-2 active:translate-y-0.5 cursor-pointer'}`}>
+            <button key={index} onClick={() => !answered && onAnswer(index)} disabled={answered} className={`w-full text-left p-3.5 rounded-xl border-b-4 border-2 transition-all ${bgClass} ${answered ? 'border-b-2 cursor-default translate-y-0.5' : 'active:border-b-2 active:translate-y-0.5 cursor-pointer'}`}>
               <div className="flex items-center gap-3">
                 <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0 ${answered && isCorrect ? 'bg-green-500 text-black' : answered && isUserChoice && !isCorrect ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400'}`}>{String.fromCharCode(65 + index)}</span>
                 <span className={`font-bold ${textClass}`}>{option}</span>
@@ -294,7 +351,7 @@ function TestModal({ milestone, onClose, onComplete }: { milestone: any; onClose
         const data = await res.json();
         if (!data.success || !data.questions?.length) throw new Error('No questions returned');
         setQuestions(data.questions); setSelectedAnswers(new Array(data.questions.length).fill(null)); setPhase('questions');
-      } catch (e) { setError('Failed to generate test.'); setPhase('questions'); }
+      } catch (e) { setError('Failed to generate test. Please try again.'); setPhase('questions'); }
     };
     fetchQuestions();
   }, [milestone.id]);
@@ -368,6 +425,13 @@ function TestModal({ milestone, onClose, onComplete }: { milestone: any; onClose
               )}
             </div>
           )}
+          {phase === 'questions' && questions.length === 0 && error && (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+              <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-400"><X size={32} /></div>
+              <p className="text-gray-400 font-bold">{error}</p>
+              <button onClick={onClose} className="text-white font-bold bg-white/10 px-4 py-2 rounded-xl mt-4">Close</button>
+            </div>
+          )}
           {phase === 'results' && (
             <div className="text-center">
               <div className={`w-32 h-32 mx-auto rounded-[2.5rem] flex items-center justify-center mb-6 border-4 shadow-2xl ${gradeConfig.bg} ${gradeConfig.border}`}>
@@ -385,83 +449,137 @@ function TestModal({ milestone, onClose, onComplete }: { milestone: any; onClose
   );
 }
 
-// ─── ROADMAP CARD ─────────────────────────────────────────────────────────────
-function RoadmapCard({ map, onMilestoneClick, onStartMilestone, onCompleteMilestone, onTrackResource, onAskMentor, onOpenTest, isDailyCourse, localTestResults }: any) {
-  const pct = map.completionPercentage;
-  
+// ─── TEST BUTTON ──────────────────────────────────────────────────────────────
+function TestButton({ milestone, localTestResults, onOpenTest }: { milestone: any; localTestResults: Record<string, TestResult>; onOpenTest: (m: any) => void; }) {
+  const testResult: TestResult | undefined = localTestResults[milestone.id] ?? milestone.progress?.testResult;
+
+  if (!testResult) {
+    return (
+      <button onClick={() => onOpenTest(milestone)} className="text-[11px] bg-purple-500 hover:bg-purple-400 text-white px-4 py-2 rounded-xl font-black border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5 ml-auto">
+        <ClipboardList size={12} /> Take Test
+      </button>
+    );
+  }
+
+  const isPassed = PASSING_GRADES.has(testResult.grade);
+  const cfg = GRADE_CONFIG[testResult.grade] ?? GRADE_CONFIG['F'];
+
+  if (isPassed) {
+    return (
+      <span title={`${cfg.desc} · ${testResult.score}/${testResult.total} · ${testResult.attempts} attempt${testResult.attempts !== 1 ? 's' : ''}`} className={`text-[11px] px-3 py-2 rounded-xl flex items-center gap-1.5 border-2 font-black cursor-default ml-auto ${cfg.color} ${cfg.bg} ${cfg.border}`}>
+        <Trophy size={12} /> Grade {testResult.grade} ✓
+      </span>
+    );
+  }
+
   return (
-    <div className="mb-8">
-      <div className="flex items-center gap-4 mb-4">
-        <div className="w-12 h-12 bg-[#111] rounded-2xl flex items-center justify-center border-2 border-white/10 shrink-0">
+    <button onClick={() => onOpenTest(milestone)} title={`Retry costs ${TEST_RETRY_XP_COST} XP.`} className="text-[11px] bg-orange-500 hover:bg-orange-400 text-white px-4 py-2 rounded-xl font-black border-b-4 border-orange-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5 ml-auto">
+      <RefreshCw size={12} /> Retry Test <span className="text-[9px] opacity-80">({TEST_RETRY_XP_COST} XP)</span>
+    </button>
+  );
+}
+
+// ─── ROADMAP CARD ─────────────────────────────────────────────────────────────
+function RoadmapCard({ map, isExpanded, onToggle, onMilestoneClick, onStartMilestone, onCompleteMilestone, onTrackResource, onAskMentor, onOpenTest, isDailyCourse, localTestResults }: any) {
+  const completedCount = map.milestones.filter((m: any) => m.progress?.status === 'completed').length;
+  const pct = map.completionPercentage;
+  const inProgressCount = map.milestones.filter((m: any) => m.progress?.status === 'in_progress').length;
+
+  return (
+    <div className={`mb-6 bg-[#111] border-2 border-white/5 rounded-3xl overflow-hidden transition-all duration-300 ${isExpanded ? 'shadow-xl' : 'hover:border-white/20'}`}>
+      <button onClick={onToggle} className="w-full p-5 flex items-center gap-4 text-left group">
+        <div className="w-12 h-12 bg-[#1a1a1a] rounded-2xl flex items-center justify-center border-2 border-white/10 shrink-0 relative">
           <ProgressRing pct={pct} size={40} stroke={4} color={pct === 100 ? '#22c55e' : '#3b82f6'} />
+          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white">{pct}%</span>
         </div>
-        <div>
-          <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-            {map.title} 
-            {pct === 100 && <span className="text-[10px] bg-green-500 text-black px-2 py-0.5 rounded-md uppercase tracking-widest font-black flex items-center gap-1"><Trophy size={10}/> Mastered</span>}
-          </h2>
-          <p className="text-xs font-bold text-gray-500">{map.milestones.filter((m:any) => m.progress?.status === 'completed').length} of {map.milestones.length} Milestones Completed</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-black text-white tracking-tight truncate">{map.title}</h2>
+            {isDailyCourse && <span className="shrink-0 text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-md uppercase font-black">Intensive</span>}
+            {pct === 100 && <span className="shrink-0 text-[10px] bg-green-500 text-black px-2 py-0.5 rounded-md uppercase font-black flex items-center gap-1"><Trophy size={10}/> Mastered</span>}
+          </div>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <p className="text-xs font-bold text-gray-500">{completedCount} of {map.milestones.length} Milestones Completed</p>
+            {inProgressCount > 0 && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-md font-black flex items-center gap-1"><Activity size={10} className="animate-pulse"/> {inProgressCount} Active</span>}
+          </div>
         </div>
-      </div>
+        <div className={`shrink-0 w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-500 group-hover:bg-white/10 group-hover:text-white transition-all ${isExpanded ? 'rotate-180' : ''}`}>
+          <ChevronDown size={20} />
+        </div>
+      </button>
 
-      <div className="space-y-3 relative before:absolute before:left-[1.8rem] before:top-4 before:bottom-4 before:w-1.5 before:bg-[#1a1a1a] before:rounded-full">
-        {map.milestones.map((milestone: any, idx: number) => {
-          const status = milestone.progress?.status || 'not_started';
-          const isLocked = idx > 0 && map.milestones[idx - 1].progress?.status !== 'completed';
-          const testResult: TestResult | undefined = localTestResults[milestone.id] ?? milestone.progress?.testResult;
+      <div className={`overflow-hidden transition-all duration-500 ${isExpanded ? 'max-h-[9999px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="p-5 pt-0 space-y-3 relative before:absolute before:left-[2.15rem] before:top-2 before:bottom-6 before:w-1.5 before:bg-[#1a1a1a] before:rounded-full">
+          {map.milestones.map((milestone: any, idx: number) => {
+            const status = milestone.progress?.status || 'not_started';
+            const isLocked = idx > 0 && map.milestones[idx - 1].progress?.status !== 'completed';
+            const testResult: TestResult | undefined = localTestResults[milestone.id] ?? milestone.progress?.testResult;
 
-          return (
-            <div key={idx} className={`relative pl-14 transition-all duration-300 ${isLocked ? 'opacity-50 grayscale' : ''}`}>
-              <div onClick={() => !isLocked && onMilestoneClick(milestone)} className={`absolute left-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-[4px] flex items-center justify-center text-[10px] font-black z-10 transition-all ${
-                  status === 'completed' ? 'bg-green-500 border-[#050505] text-black scale-110' :
-                  status === 'in_progress' ? 'bg-blue-500 border-[#050505] text-white scale-125 shadow-[0_0_15px_rgba(59,130,246,0.6)]' :
-                  isLocked ? 'bg-[#1a1a1a] border-[#050505] text-gray-600' : 'bg-white border-[#050505] text-black hover:scale-110 cursor-pointer'
-                }`}>
-                {status === 'completed' ? <CheckCircle size={12} /> : isLocked ? <Lock size={10} /> : status === 'in_progress' ? <Play size={8} fill="currentColor" className="ml-0.5" /> : <span>{idx + 1}</span>}
-              </div>
-
-              <div className={`bg-[#111] border-2 border-white/5 rounded-2xl p-4 transition-all ${isLocked ? 'cursor-not-allowed' : 'hover:border-white/20 hover:bg-[#151515] shadow-lg cursor-pointer active:scale-[0.99]'}`} onClick={() => !isLocked && onMilestoneClick(milestone)}>
-                <div className="flex justify-between items-start mb-2 gap-4">
-                  <div>
-                    <h4 className={`font-black text-[15px] mb-1 ${status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}>{milestone.title}</h4>
-                    <p className="text-xs text-gray-400 font-medium leading-relaxed">{milestone.description}</p>
-                  </div>
-                  <div className="flex flex-col gap-2 items-end shrink-0">
-                    <StatusPill status={status} />
-                    {testResult && <GradePill testResult={testResult} />}
-                  </div>
+            return (
+              <div key={idx} className={`relative pl-14 transition-all duration-300 ${isLocked ? 'opacity-50 grayscale' : ''}`}>
+                <div onClick={() => !isLocked && onMilestoneClick(milestone)} className={`absolute left-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-[4px] flex items-center justify-center text-[10px] font-black z-10 transition-all ${
+                    status === 'completed' ? 'bg-green-500 border-[#111] text-black scale-110' :
+                    status === 'in_progress' ? 'bg-blue-500 border-[#111] text-white scale-125 shadow-[0_0_15px_rgba(59,130,246,0.6)]' :
+                    isLocked ? 'bg-[#1a1a1a] border-[#111] text-gray-600' : 'bg-white border-[#111] text-black hover:scale-110 cursor-pointer'
+                  }`}>
+                  {status === 'completed' ? <CheckCircle size={12} /> : isLocked ? <Lock size={10} /> : status === 'in_progress' ? <Play size={8} fill="currentColor" className="ml-0.5" /> : <span>{idx + 1}</span>}
                 </div>
 
-                {!isLocked && (
-                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
-                    {status === 'not_started' && (
-                      <button onClick={() => onStartMilestone(milestone)} className="text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl font-black border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
-                        <Play size={12} fill="currentColor" /> Start
-                      </button>
-                    )}
-                    {status === 'in_progress' && (
-                      <button onClick={() => onCompleteMilestone(milestone)} className="text-xs bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-xl font-black border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
-                        <CheckCircle size={12} /> Mark Done
-                      </button>
-                    )}
-                    <button onClick={() => onAskMentor('explain', milestone)} className="text-xs bg-[#222] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><Sparkles size={14} className="text-yellow-400"/> Explain</button>
-                    <button onClick={() => onAskMentor('quiz', milestone)} className="text-xs bg-[#222] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><GraduationCap size={14} className="text-green-400"/> Quiz</button>
-                    
-                    {!testResult ? (
-                      <button onClick={() => onOpenTest(milestone)} className="text-xs bg-purple-500 hover:bg-purple-400 text-white px-3 py-2 rounded-xl font-black border-b-4 border-purple-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5 ml-auto">
-                        Take Test
-                      </button>
-                    ) : !PASSING_GRADES.has(testResult.grade) ? (
-                      <button onClick={() => onOpenTest(milestone)} className="text-xs bg-orange-500 hover:bg-orange-400 text-white px-3 py-2 rounded-xl font-black border-b-4 border-orange-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5 ml-auto">
-                        <RefreshCw size={12} /> Retry Test
-                      </button>
-                    ) : null}
+                <div className={`bg-[#1a1a1a] border-2 border-white/5 rounded-2xl p-4 transition-all ${isLocked ? 'cursor-not-allowed' : 'hover:border-white/20 hover:bg-[#222] shadow-lg cursor-pointer active:scale-[0.99]'}`} onClick={() => !isLocked && onMilestoneClick(milestone)}>
+                  <div className="flex justify-between items-start mb-2 gap-4">
+                    <div>
+                      <h4 className={`font-black text-[15px] mb-1 ${status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}>{milestone.title}</h4>
+                      <p className="text-xs text-gray-400 font-medium leading-relaxed">{milestone.description}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 items-end shrink-0">
+                      <StatusPill status={status} />
+                      {testResult && <GradePill testResult={testResult} />}
+                    </div>
                   </div>
-                )}
+
+                  {!isLocked && (
+                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                      {status === 'not_started' && (
+                        <button onClick={() => onStartMilestone(milestone)} className="text-xs bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl font-black border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
+                          <Play size={12} fill="currentColor" /> Start
+                        </button>
+                      )}
+                      {status === 'in_progress' && (
+                        <button onClick={() => onCompleteMilestone(milestone)} className="text-xs bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-xl font-black border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
+                          <CheckCircle size={12} /> Mark Done
+                        </button>
+                      )}
+                      <button onClick={() => onAskMentor('explain', milestone)} className="text-xs bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><Sparkles size={14} className="text-yellow-400"/> Explain</button>
+                      <button onClick={() => onAskMentor('quiz', milestone)} className="text-xs bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-xl font-bold border-b-4 border-[#111] active:border-b-0 active:translate-y-1 transition-all flex items-center gap-1.5"><GraduationCap size={14} className="text-green-400"/> Quiz</button>
+                      
+                      <TestButton milestone={milestone} localTestResults={localTestResults} onOpenTest={onOpenTest} />
+                    </div>
+                  )}
+
+                  {milestone.resources && milestone.resources.length > 0 && !isLocked && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                      {milestone.resources.map((res: any, rId: number) => {
+                        const isViewed = milestone.progress?.resourcesViewed?.includes(res.id || res.url);
+                        return (
+                          <a key={rId} href={res.url} target="_blank" rel="noopener noreferrer" onClick={() => onTrackResource(milestone, res.id || res.url)}
+                            className={`flex items-center gap-3 p-3 rounded-xl border-b-4 border-2 transition-all group/link text-xs font-bold active:border-b-2 active:translate-y-0.5 ${isViewed ? 'bg-blue-900/20 border-blue-500/30 text-blue-400 border-b-2 translate-y-0.5' : 'bg-[#111] hover:bg-[#222] border-white/5 hover:border-white/10 text-gray-400 hover:text-white'}`}>
+                            {res.type === 'YOUTUBE' && <Video size={14} className="text-red-500 shrink-0" />}
+                            {res.type === 'GITHUB' && <Code size={14} className="text-purple-500 shrink-0" />}
+                            {res.type === 'INTERACTIVE' && <Play size={14} className="text-green-500 shrink-0" />}
+                            {res.type === 'ARTICLE' && <BookOpen size={14} className="text-blue-500 shrink-0" />}
+                            {!['YOUTUBE', 'GITHUB', 'INTERACTIVE', 'ARTICLE'].includes(res.type) && <ExternalLink size={14} className="text-gray-500 shrink-0" />}
+                            <span className="flex-1 truncate">{res.title}</span>
+                            {isViewed ? <CheckCircle size={14} className="text-blue-500 shrink-0" /> : <ChevronRight size={14} className="text-gray-600 group-hover/link:text-white shrink-0" />}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -503,11 +621,21 @@ export default function Dashboard() {
   useEffect(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, [chatHistory, isStreaming, isThinking]);
   useEffect(() => { if (activeMilestone) dispatch(setShowWelcome(chatHistory.length === 0)); }, [activeMilestone, chatHistory]);
 
-  const toggleRoadmap = (id: string) => setExpandedRoadmaps(prev => { const next = new Set(prev); if(next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleRoadmap = (id: string) => {
+    setExpandedRoadmaps((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const handleProgressAction = async (action: string, data: any) => {
     if (!user) return;
-    try { const result = await dispatch(performProgressAction({ action, userId: user.id, data })).unwrap(); dispatch(loadRoadmaps(user.id)); return result?.result; } catch (e) {}
+    try {
+      const result = await dispatch(performProgressAction({ action, userId: user.id, data })).unwrap();
+      dispatch(loadRoadmaps(user.id));
+      return result?.result;
+    } catch (e) { console.error('Progress update failed', e); }
   };
 
   const isMissionFree = roadmaps.length === 0;
@@ -516,100 +644,203 @@ export default function Dashboard() {
 
   const handleGenerate = async () => {
     if (!goal.trim() || !user) return;
-    if (!isMissionFree && !canAffordMission) { setXpGateError(`Need ${MISSION_XP_COST} XP. Complete daily goals!`); setShowXpGate(true); return; }
+    if (!isMissionFree && !canAffordMission) {
+      setXpGateError(`Need ${MISSION_XP_COST} XP. Complete daily goals!`);
+      setShowXpGate(true);
+      return;
+    }
     if (!isMissionFree) { setShowXpGate(true); setXpGateError(''); return; }
     await executeGenerate();
   };
 
   const executeGenerate = async () => {
-    setShowXpGate(false); if (!goal.trim() || !user) return;
+    setShowXpGate(false);
+    if (!goal.trim() || !user) return;
     try {
       if (!isMissionFree) {
-        const deductResult = await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: MISSION_XP_COST } }) });
-        const deductData = await deductResult.json(); if (!deductData.success) { alert(deductData.error || 'Failed to deduct XP'); return; }
+        const deductResult = await fetch('/api/progress', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: MISSION_XP_COST } }),
+        });
+        const deductData = await deductResult.json();
+        if (!deductData.success) { alert(deductData.error || 'Failed to deduct XP'); return; }
         dispatch(loadUserProgress(user.id));
       }
       const result = await dispatch(generateRoadmap({ goal, userId: user.id })).unwrap();
       if (result?.id) setExpandedRoadmaps((prev) => new Set([...prev, result.id]));
       dispatch(setGoal(''));
-    } catch { alert('Failed to generate roadmap.'); }
+    } catch { alert('Failed to generate roadmap. Please try again.'); }
   };
 
-  const startMilestone = async (milestone: any) => { await handleProgressAction('start_milestone', { milestoneId: milestone.id }); dispatch(setActiveMilestone({ ...milestone, progress: { status: 'in_progress' } })); };
-  const completeMilestone = async (milestone: any) => { if (confirm("Mastered this?")) { await handleProgressAction('complete_milestone', { milestoneId: milestone.id }); } };
-  const trackResourceView = async (milestone: any, resourceId: string) => { await handleProgressAction('mark_resource_viewed', { milestoneId: milestone.id, resourceId }); };
-  
+  const startMilestone = async (milestone: any) => {
+    await handleProgressAction('start_milestone', { milestoneId: milestone.id });
+    dispatch(setActiveMilestone({ ...milestone, progress: { status: 'in_progress' } }));
+  };
+
+  const completeMilestone = async (milestone: any) => {
+    if (confirm("Are you sure you've mastered this milestone?")) {
+      await handleProgressAction('complete_milestone', { milestoneId: milestone.id });
+    }
+  };
+
+  const trackResourceView = async (milestone: any, resourceId: string) => {
+    await handleProgressAction('mark_resource_viewed', { milestoneId: milestone.id, resourceId });
+  };
+
   const handleOpenTest = (milestone: any) => {
     const testResult = localTestResults[milestone.id] ?? milestone.progress?.testResult;
-    if (testResult) { if (PASSING_GRADES.has(testResult.grade)) return; setRetryError(''); setTestRetryGate({ milestone }); return; }
+    if (testResult) {
+      if (PASSING_GRADES.has(testResult.grade)) return;
+      setRetryError('');
+      setTestRetryGate({ milestone });
+      return;
+    }
     setTestMilestone(milestone);
   };
-  const handleCloseTest = () => { setTestMilestone(null); if (user) { dispatch(loadRoadmaps(user.id)); dispatch(loadUserProgress(user.id)); } };
+
+  const handleCloseTest = () => {
+    setTestMilestone(null);
+    if (user) {
+      dispatch(loadRoadmaps(user.id));
+      dispatch(loadUserProgress(user.id));
+    }
+  };
 
   const handleRetryConfirm = async () => {
     if (!user || !testRetryGate) return;
-    if (!canAffordRetry) { setRetryError(`Need ${TEST_RETRY_XP_COST} XP to retry.`); return; }
-    setRetryLoading(true); setRetryError('');
+    if (!canAffordRetry) {
+      setRetryError(`Need ${TEST_RETRY_XP_COST} XP to retry.`);
+      return;
+    }
+    setRetryLoading(true);
+    setRetryError('');
     try {
-      const res = await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: TEST_RETRY_XP_COST } }) });
-      const data = await res.json(); if (!data.success) { setRetryError(data.error); setRetryLoading(false); return; }
-      dispatch(loadUserProgress(user.id)); setTestRetryGate(null); setTestMilestone(testRetryGate.milestone);
-    } catch { setRetryError('Error.'); } finally { setRetryLoading(false); }
+      const res = await fetch('/api/progress', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deduct_xp', userId: user.id, data: { amount: TEST_RETRY_XP_COST } }),
+      });
+      const data = await res.json();
+      if (!data.success) { setRetryError(data.error); setRetryLoading(false); return; }
+      dispatch(loadUserProgress(user.id));
+      setTestRetryGate(null);
+      setTestMilestone(testRetryGate.milestone);
+    } catch { setRetryError('Something went wrong. Please try again.'); }
+    finally { setRetryLoading(false); }
   };
 
   const handleTestComplete = async (score: number, total: number, answers: any[]) => {
     if (!user || !testMilestone) return;
     try {
-      const res = await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'submit_test', userId: user.id, data: { milestoneId: testMilestone.id, milestoneTitle: testMilestone.title, score, total, answers } }) });
+      const res = await fetch('/api/progress', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_test',
+          userId: user.id,
+          data: { milestoneId: testMilestone.id, milestoneTitle: testMilestone.title, score, total, answers },
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         const prevAttempts = (localTestResults[testMilestone.id]?.attempts ?? testMilestone.progress?.testResult?.attempts ?? 0);
-        setLocalTestResults((prev) => ({ ...prev, [testMilestone.id]: { grade: data.grade, score: data.score, total: data.total, attempts: data.attempts ?? prevAttempts + 1, passed: data.passed, xpEarned: data.xpEarned, lastAttemptAt: new Date().toISOString() } }));
-        dispatch(loadUserProgress(user.id)); dispatch(loadRoadmaps(user.id));
+        const newResult: TestResult = {
+          grade: data.grade, score: data.score, total: data.total, attempts: data.attempts ?? prevAttempts + 1, passed: data.passed, xpEarned: data.xpEarned, lastAttemptAt: new Date().toISOString(),
+        };
+        setLocalTestResults((prev) => ({ ...prev, [testMilestone.id]: newResult }));
+        dispatch(loadUserProgress(user.id));
+        dispatch(loadRoadmaps(user.id));
       }
-    } catch (e) {}
+    } catch (e) { console.error('Test submit failed', e); }
   };
 
   const handleAskMentor = async (mode: 'chat' | 'explain' | 'quiz', milestoneOverride?: any, text?: string) => {
-    const targetMilestone = milestoneOverride || activeMilestone; if (!targetMilestone) return;
+    const targetMilestone = milestoneOverride || activeMilestone;
+    if (!targetMilestone) return;
     if (milestoneOverride && milestoneOverride.id !== activeMilestone?.id) dispatch(openMilestone(milestoneOverride));
-    const userMsg = text || chatInput; if (!userMsg && mode === 'chat') return;
-    dispatch(setIsStreaming(true)); dispatch(setIsThinking(true)); dispatch(setChatInput('')); dispatch(setShowWelcome(false));
-    let displayMsg = userMsg; if (mode === 'quiz') displayMsg = '🎲 Quiz Me'; if (mode === 'explain') displayMsg = '💡 Explain Concept';
-    const newUserMessage: ChatMessage = { role: 'user', text: displayMsg }; dispatch(appendChatMessage(newUserMessage));
+    const userMsg = text || chatInput;
+    if (!userMsg && mode === 'chat') return;
+    dispatch(setIsStreaming(true));
+    dispatch(setIsThinking(true));
+    dispatch(setChatInput(''));
+    dispatch(setShowWelcome(false));
+    let displayMsg = userMsg;
+    if (mode === 'quiz') displayMsg = '🎲 Quiz Me';
+    if (mode === 'explain') displayMsg = '💡 Explain this concept';
+    const newUserMessage: ChatMessage = { role: 'user', text: displayMsg };
+    dispatch(appendChatMessage(newUserMessage));
     handleProgressAction('update_daily_progress', { minsSpent: 1 });
     const historyForAPI = [...chatHistory, newUserMessage].map((msg) => ({ role: msg.role, text: msg.text || '' }));
     try {
-      const response = await fetch('/api/mentor-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg || `Generate a ${mode}`, context: `${targetMilestone.title}: ${targetMilestone.description}`, mode, chatHistory: historyForAPI }) });
-      if (!response.body) throw new Error(); const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let currentAiText = ''; let messageAdded = false;
+      const response = await fetch('/api/mentor-chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg || `Generate a ${mode}`, context: `${targetMilestone.title}: ${targetMilestone.description}`, mode, chatHistory: historyForAPI }),
+      });
+      if (!response.body) throw new Error('No response stream');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentAiText = '';
+      let messageAdded = false;
       while (true) {
-        const { value, done } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
             const parsed = JSON.parse(line);
             if (parsed.type === 'thinking') { dispatch(setIsThinking(true)); }
-            else if (parsed.type === 'content') { dispatch(setIsThinking(false)); if (!messageAdded) { dispatch(appendChatMessage({ role: 'ai', text: '' })); messageAdded = true; } }
-            else if (parsed.type === 'data') { dispatch(setIsThinking(false)); if (!messageAdded) { dispatch(appendChatMessage({ role: 'ai', text: '' })); messageAdded = true; } currentAiText += parsed.content; dispatch(updateLastAiMessage(currentAiText)); }
-            else if (parsed.type === 'quiz') { dispatch(setIsThinking(false)); dispatch(appendChatMessage({ role: 'ai', quiz: parsed.data })); messageAdded = true; }
-          } catch (e) {}
+            else if (parsed.type === 'content') {
+              dispatch(setIsThinking(false));
+              if (!messageAdded) { dispatch(appendChatMessage({ role: 'ai', text: '' })); messageAdded = true; }
+            } else if (parsed.type === 'data') {
+              dispatch(setIsThinking(false));
+              if (!messageAdded) { dispatch(appendChatMessage({ role: 'ai', text: '' })); messageAdded = true; }
+              currentAiText += parsed.content;
+              dispatch(updateLastAiMessage(currentAiText));
+            } else if (parsed.type === 'quiz') {
+              dispatch(setIsThinking(false));
+              dispatch(appendChatMessage({ role: 'ai', quiz: parsed.data }));
+              messageAdded = true;
+            }
+          } catch (e) { console.error('Parse error:', e); }
         }
       }
-    } catch (err) { dispatch(setIsThinking(false)); } finally { dispatch(setIsStreaming(false)); dispatch(setIsThinking(false)); }
+    } catch (err) {
+      console.error('Stream Error:', err);
+      dispatch(setIsThinking(false));
+    } finally {
+      dispatch(setIsStreaming(false));
+      dispatch(setIsThinking(false));
+    }
   };
 
   const handleQuizAnswer = async (messageIndex: number, answerIndex: number) => {
     dispatch(setQuizAnswer({ index: messageIndex, answer: answerIndex }));
-    const msg = chatHistory[messageIndex]; if (msg?.quiz && answerIndex === msg.quiz.correctIndex) await handleProgressAction('submit_quiz_manual', { xp: 25 });
+    const msg = chatHistory[messageIndex];
+    if (msg?.quiz) {
+      const isCorrect = answerIndex === msg.quiz.correctIndex;
+      if (isCorrect) await handleProgressAction('submit_quiz_manual', { xp: 25 });
+    }
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); dispatch(clearUser()); router.push('/'); };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    dispatch(clearUser());
+    router.push('/');
+  };
 
-  if (!user) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={32} /></div>;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#050505] text-white font-sans overflow-hidden">
-      
       {/* ── LEFT NAVBAR ── */}
       <Navbar user={user} onLogout={handleLogout} progress={userProgress ?? undefined} />
 
@@ -657,10 +888,15 @@ export default function Dashboard() {
             ) : (
               roadmaps.map((map) => (
                 <RoadmapCard
-                  key={map.id} map={map}
+                  key={map.id}
+                  map={map}
+                  isExpanded={expandedRoadmaps.has(map.id)}
+                  onToggle={() => toggleRoadmap(map.id)}
                   onMilestoneClick={(m:any) => dispatch(openMilestone(m))}
-                  onStartMilestone={startMilestone} onCompleteMilestone={completeMilestone}
-                  onTrackResource={trackResourceView} onAskMentor={handleAskMentor}
+                  onStartMilestone={startMilestone}
+                  onCompleteMilestone={completeMilestone}
+                  onTrackResource={trackResourceView}
+                  onAskMentor={handleAskMentor}
                   onOpenTest={handleOpenTest}
                   isDailyCourse={map.title.toLowerCase().includes('day') || map.milestones.some((m: any) => m.title.toLowerCase().includes('day'))}
                   localTestResults={localTestResults}
@@ -672,7 +908,6 @@ export default function Dashboard() {
       </main>
 
       {/* ── RIGHT AREA (NEURAL MENTOR ALWAYS ON DESKTOP) ── */}
-      {/* Mobile view uses fixed slide-in, Desktop view is a static flex item */}
       <aside className={`fixed lg:relative inset-y-0 right-0 z-40 w-full md:w-[450px] bg-[#0a0a0a] border-l border-white/5 flex flex-col shrink-0 transition-transform duration-300
          ${activeMilestone ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'} `}>
         
@@ -684,7 +919,6 @@ export default function Dashboard() {
                <p className="text-xs text-green-400 font-bold flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"/> Online</p>
              </div>
           </div>
-          {/* Close button only visible on mobile when active */}
           <button onClick={() => dispatch(closeMentor())} className="lg:hidden w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white"><X size={20}/></button>
         </div>
 
@@ -745,12 +979,11 @@ export default function Dashboard() {
       </aside>
 
       {/* ── MODALS (XP GATE, RETRY GATE, TEST MODAL, ACHIEVEMENTS) ── */}
-      {/* Kept identical logic but styled to match the new bold UI */}
       {showAchievements && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#111] border-2 border-white/10 rounded-3xl max-w-2xl w-full max-h-[80vh] flex flex-col">
             <div className="p-6 border-b-2 border-white/5 flex justify-between items-center"><h2 className="font-black text-xl flex items-center gap-2"><Trophy className="text-yellow-500"/> Badges</h2><button onClick={() => dispatch(setShowAchievements(false))} className="w-10 h-10 rounded-xl bg-white/5 active:translate-y-1 flex items-center justify-center"><X size={20} /></button></div>
-            <div className="p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-4 custom-scrollbar">
               {(userProgress?.achievements?.length || 0) === 0 ? <div className="col-span-full text-center py-10 text-gray-500 font-bold">No badges yet. Keep learning!</div> : userProgress?.achievements?.map((badge, i) => (
                 <div key={i} className="bg-[#1a1a1a] border-b-4 border-white/5 rounded-2xl p-5 flex flex-col items-center text-center gap-2"><div className="text-4xl mb-2">{badge.badgeIcon}</div><h3 className="font-black text-white text-sm">{badge.badgeName}</h3><p className="text-xs text-gray-400 font-bold">{badge.description}</p></div>
               ))}
