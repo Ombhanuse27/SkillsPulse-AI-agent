@@ -16,7 +16,7 @@
     "@langchain/groq": "^1.0.2",
     "@langchain/langgraph": "^1.1.4",
     "@langchain/tavily": "^1.2.0",
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.8.0",
     "@reduxjs/toolkit": "^2.11.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
@@ -30,6 +30,7 @@
     "lucide-react": "^0.562.0",
     "next": "16.1.0",
     "pdf-parse": "^1.1.1",
+    "prisma": "^7.8.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
@@ -52,7 +53,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.0",
-    "prisma": "^7.7.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
