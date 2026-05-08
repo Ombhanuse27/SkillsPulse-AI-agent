@@ -38,3 +38,4 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
           DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
           GROQ_API_KEY: "dummy_key"
+          TAVILY_API_KEY: "dummy_key"
