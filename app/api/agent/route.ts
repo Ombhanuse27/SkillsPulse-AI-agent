@@ -3,9 +3,7 @@ import { ChatGroq } from "@langchain/groq";
 import { SystemMessage } from "@langchain/core/messages";
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
 import { tavily } from "@tavily/core";
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 const llm = new ChatGroq({
   model: "llama-3.3-70b-versatile",

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import {
   processInterviewTurn,
   generateHint,
   generateFinalReport,
 } from "@/lib/interview-agent";
 
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 // Helper: try to create a session with all new fields; fall back to base fields
 // if the migration hasn't been run yet (Prisma will throw a validation error).

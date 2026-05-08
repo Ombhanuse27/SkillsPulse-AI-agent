@@ -223,7 +223,8 @@ export default function ResumeAnalyzerPage() {
   const [quizData, setQuizData] = useState<any>(null);
   const [projectIdeas, setProjectIdeas] = useState<any>(null); 
   const [featureLoading, setFeatureLoading] = useState(false);
-  const [selectedAnswers, setSelectedAnswers] = useState<{[key: number]: number}>({});
+ const [selectedAnswers, setSelectedAnswers] = useState<{[key: number]: number}>({});
+const [hasUsedFreeAnalysis, setHasUsedFreeAnalysis] = useState(false);
 
   // Initialize Auth & Progress
   useEffect(() => {
@@ -236,6 +237,14 @@ export default function ResumeAnalyzerPage() {
     };
     init();
   }, [dispatch, supabase.auth]);
+
+  useEffect(() => {
+  if (typeof window !== "undefined") {
+    setHasUsedFreeAnalysis(
+      localStorage.getItem("free_resume_analysis_used") === "true"
+    );
+  }
+}, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -402,7 +411,7 @@ export default function ResumeAnalyzerPage() {
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500/0 via-blue-500/40 to-blue-500/0 transition-opacity opacity-50 group-hover:opacity-100" />
 
               {/* Status / Cost Banners */}
-              {!user && !localStorage.getItem('free_resume_analysis_used') && (
+              {!user && !hasUsedFreeAnalysis && (
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 text-green-400 p-4 rounded-2xl text-sm font-bold flex items-center gap-3 shadow-inner">
                   <Sparkles size={18} className="text-green-300 animate-pulse shrink-0" /> 
                   <span>Your first analysis is completely free!</span>

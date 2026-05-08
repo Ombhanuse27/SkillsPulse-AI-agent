@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -16,6 +16,7 @@
     "@langchain/groq": "^1.0.2",
     "@langchain/langgraph": "^1.1.4",
     "@langchain/tavily": "^1.2.0",
+    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@reduxjs/toolkit": "^2.11.2",
     "@supabase/ssr": "^0.8.0",
@@ -30,6 +31,7 @@
     "lucide-react": "^0.562.0",
     "next": "16.1.0",
     "pdf-parse": "^1.1.1",
+    "pg": "^8.20.0",
     "prisma": "^7.8.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

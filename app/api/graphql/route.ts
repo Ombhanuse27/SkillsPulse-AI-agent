@@ -1,10 +1,10 @@
 import { startServerAndCreateNextHandler } from "@as-integrations/next";
 import { ApolloServer } from "@apollo/server";
 import { gql } from "graphql-tag";
-import { PrismaClient } from "@prisma/client";
+
 import Groq from "groq-sdk";
 
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const typeDefs = gql`
