@@ -9,11 +9,11 @@
 SkillPulse utilizes a hybrid intelligence architecture, matching the processing logic to the complexity of the career task.
 
 ### 1. The Auditor (Resume Agent) — *Powered by LangChain*
-**Goal:** High-precision document analysis and ATS optimization.
-* **Context Hydration:** Merges raw PDF text with structured database records (Experiences, Skills, Projects) to build a 360-degree Candidate Profile.
-* **Strict Scoring Algorithm:** Implements heuristic ceilings—if a candidate's experience is <50% of the JD requirement, the score is capped at 50% to ensure realistic feedback.
-* **ATS Fixer:** Autonomously rewrites weak bullet points using the **Action-Verb + Metric + Result** formula for maximum recruiter impact.
-* **Skill-Gap Extraction:** Generates a filtered JSON of technologies required by the JD but missing from the profile, which is passed directly to the Architect.
+**Goal:** High-precision document analysis, structured data extraction, and ATS optimization.
+* **Structured PDF Extraction:** Transforms raw PDF data into structured Prisma-ready records (Skills, Experiences, Projects) persisted in PostgreSQL.
+* **Context Hydration:** Dynamically merges unstructured resume text with existing database records to build a comprehensive 360-degree candidate profile for the AI context window.
+* **Strict Scoring Algorithm:** Implements heuristic ceilings—if a candidate's experience is <50% of the JD requirement, the score is capped at 50% to ensure realistic, non-hallucinated feedback.
+* **Unified Audit Report:** Delivers a comprehensive output including a specialized Skill-Gap Roadmap, section-by-section ATS Fixes, Missing Skills analysis, and tailored Project Ideas.
 
 ### 2. The Architect (Learning Agent) — *Powered by LangGraph*
 **Goal:** Transforming skill gaps into actionable, autonomous research missions.
