@@ -59,8 +59,8 @@ SkillPulse operates on a strict **XP Economy** to drive consistency and prevent 
 
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/your-username/SkillPulse.git](https://github.com/your-username/SkillPulse.git)
-    cd SkillPulse
+    git clone https://github.com/Ombhanuse27/SkillsPulse-AI-agent
+    cd SkillPulse-AI-agent
     ```
 
 2.  **Install Dependencies:**
